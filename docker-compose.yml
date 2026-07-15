@@ -1,0 +1,179 @@
+name: hybrid-document-intake
+
+x-python-service: &python-service
+  build:
+    context: .
+    dockerfile: infrastructure/Dockerfile.python
+  env_file: .env
+  environment:
+    INTAKE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
+    INTAKE_STORAGE_ROOT: /var/lib/document-intake/objects
+  restart: unless-stopped
+
+x-database-healthcheck: &database-healthcheck
+  test: ["CMD", "python", "-m", "intake_api.database_healthcheck"]
+  interval: 10s
+  timeout: 5s
+  retries: 6
+  start_period: 10s
+
+services:
+  postgres:
+    image: postgres:17.6-alpine3.22
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  migrate:
+    <<: *python-service
+    command: ["alembic", "-c", "services/api/alembic.ini", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  bootstrap-data:
+    <<: *python-service
+    command: ["python", "-m", "intake_api.bootstrap"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  checkpoint-migrate:
+    <<: *python-service
+    command: ["python", "-m", "intake_orchestrator.checkpoint_setup"]
+    environment:
+      INTAKE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
+      INTAKE_CHECKPOINT_DATABASE_URL: postgresql://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
+      LANGGRAPH_STRICT_MSGPACK: "true"
+    depends_on:
+      bootstrap-data:
+        condition: service_completed_successfully
+    restart: "no"
+
+  fastapi-api:
+    <<: *python-service
+    command: ["uvicorn", "intake_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - document-objects:/var/lib/document-intake/objects
+    ports:
+      - "8000:8000"
+    depends_on:
+      bootstrap-data:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  langgraph-orchestrator:
+    <<: *python-service
+    command: ["python", "-m", "intake_orchestrator.main"]
+    environment:
+      INTAKE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
+      INTAKE_CHECKPOINT_DATABASE_URL: postgresql://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
+      INTAKE_STORAGE_ROOT: /var/lib/document-intake/objects
+      LANGGRAPH_STRICT_MSGPACK: "true"
+    volumes:
+      - document-objects:/var/lib/document-intake/objects:ro
+    depends_on:
+      checkpoint-migrate:
+        condition: service_completed_successfully
+    healthcheck: *database-healthcheck
+
+  integration-worker:
+    <<: *python-service
+    command: ["python", "-m", "intake_integration_worker.main"]
+    environment:
+      INTAKE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
+      INTAKE_ZAPIER_HOOK_URL: ${INTAKE_ZAPIER_HOOK_URL:-http://mock-zapier:8090/hooks/catch}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mock-zapier:
+        condition: service_healthy
+        required: false
+    healthcheck: *database-healthcheck
+
+  streamlit-dashboard:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.dashboard
+    environment:
+      DASHBOARD_API_BASE_URL: http://fastapi-api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      fastapi-api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  angular-web:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.web
+    ports:
+      - "4200:8080"
+    depends_on:
+      fastapi-api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  mock-zapier:
+    <<: *python-service
+    command: ["uvicorn", "mock_zapier.main:app", "--host", "0.0.0.0", "--port", "8090"]
+    profiles: ["local", "test"]
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health/ready', timeout=3).read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  postgres-data:
+  document-objects:

@@ -1,0 +1,19 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 206 >>
+stream
+BT /F1 10 Tf 20 110 Td (SYNTHETIC low-confidence-invoice invoice_number: INV-1007 invoice_date: 2026-07-07 supplier_name: Synthetic Blurred Supply currency: USD subtotal: 90.00 tax: 7.20 total: 97.20) Tj ET
+endstream
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF

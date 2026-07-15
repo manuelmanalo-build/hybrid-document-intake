@@ -1,0 +1,347 @@
+<header class="app-header">
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div>
+    <p class="eyebrow">AP operations console</p>
+    <h1>Document intake</h1>
+  </div>
+  <div class="session">
+    <label for="access-token">FastAPI access token</label>
+    <div class="session-row">
+      <input
+        id="access-token"
+        type="password"
+        autocomplete="off"
+        [value]="accessToken()"
+        (input)="setAccessToken($event)"
+      />
+      <button type="button" class="secondary" (click)="connect()" [disabled]="busy()">
+        Connect
+      </button>
+    </div>
+    @if (identity(); as actor) {
+      <span class="actor">{{ actor.role.replaceAll('_', ' ') }} · {{ actor.subject }}</span>
+    }
+  </div>
+</header>
+
+<nav aria-label="Primary">
+  <button
+    type="button"
+    [class.active]="activeView() === 'intake'"
+    [attr.aria-current]="activeView() === 'intake' ? 'page' : null"
+    (click)="navigate('intake')"
+  >
+    Upload
+  </button>
+  <button
+    type="button"
+    [class.active]="activeView() === 'documents'"
+    [attr.aria-current]="activeView() === 'documents' ? 'page' : null"
+    (click)="navigate('documents')"
+  >
+    Documents
+  </button>
+  @if (canReview()) {
+    <button
+      type="button"
+      [class.active]="activeView() === 'review'"
+      [attr.aria-current]="activeView() === 'review' ? 'page' : null"
+      (click)="navigate('review')"
+    >
+      Review queue <span class="count">{{ reviewTasks().length }}</span>
+    </button>
+  }
+</nav>
+
+<div class="live-region" aria-live="polite" aria-atomic="true">
+  @if (notice(); as message) {
+    <p class="notice">{{ message }}</p>
+  }
+  @if (error(); as message) {
+    <section class="error-summary" role="alert" aria-labelledby="error-title">
+      <h2 id="error-title">There is a problem</h2>
+      <p>{{ message }}</p>
+    </section>
+  }
+</div>
+
+<main id="main-content">
+  @if (activeView() === 'intake') {
+    <section class="panel intro" aria-labelledby="upload-title">
+      <div>
+        <p class="eyebrow">Immutable intake boundary</p>
+        <h2 id="upload-title">Submit an AP invoice</h2>
+        <p>
+          FastAPI validates and stores the original PDF, then transactionally queues processing.
+          Your idempotency key is retained after failures so retries are safe.
+        </p>
+      </div>
+      <form (submit)="$event.preventDefault(); submit()">
+        <label for="document">PDF document</label>
+        <input
+          id="document"
+          type="file"
+          accept="application/pdf,.pdf"
+          required
+          (change)="selectFile($event)"
+        />
+        <p class="key">
+          Idempotency key: <code>{{ idempotencyKey() }}</code>
+        </p>
+        <button
+          type="submit"
+          [disabled]="selectedFile() === null || !accessToken() || submitting()"
+        >
+          {{ submitting() ? 'Uploading…' : 'Upload invoice' }}
+        </button>
+        @if (submitting() || uploadProgress() > 0) {
+          <label for="upload-progress">Upload progress: {{ uploadProgress() }}%</label>
+          <progress id="upload-progress" max="100" [value]="uploadProgress()">
+            {{ uploadProgress() }}%
+          </progress>
+        }
+      </form>
+      @if (result(); as document) {
+        <output class="success">
+          <strong>Upload accepted.</strong>
+          <span>Document {{ document.document_id }}</span>
+          <app-status-badge [status]="document.graph_run_status" />
+        </output>
+      }
+    </section>
+  }
+
+  @if (activeView() === 'documents') {
+    <section class="panel" aria-labelledby="documents-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Tenant-scoped</p>
+          <h2 id="documents-title">Documents</h2>
+        </div>
+        <button type="button" class="secondary" (click)="navigate('documents')">Refresh</button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Created</th>
+              <th>Processing stage</th>
+              <th>Duplicate</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (document of documents(); track document.id) {
+              <tr>
+                <td>
+                  <code>{{ document.id }}</code>
+                </td>
+                <td>{{ document.created_at.slice(0, 16).replace('T', ' ') }}</td>
+                <td><app-status-badge [status]="document.processing_stage" /></td>
+                <td>{{ document.duplicate_content ? 'Yes — same tenant content match' : 'No' }}</td>
+                <td>
+                  <button type="button" class="link" (click)="openDocument(document.id)">
+                    Open
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5">No documents are available for this identity.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (activeView() === 'review') {
+    <section class="panel" aria-labelledby="review-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Human authority</p>
+          <h2 id="review-title">Review queue</h2>
+        </div>
+        <button type="button" class="secondary" (click)="navigate('review')">Refresh</button>
+      </div>
+      <ul class="task-list">
+        @for (task of reviewTasks(); track task.id) {
+          <li>
+            <div>
+              <strong>Document {{ task.document_id }}</strong>
+              <span
+                >Cycle {{ task.cycle }} · Claim {{ task.claimed_by_user_id ?? 'unassigned' }}</span
+              >
+            </div>
+            <app-status-badge [status]="task.status" />
+            <div class="actions">
+              @if (task.claimed_by_user_id === null) {
+                <button type="button" (click)="claim(task)">Claim</button>
+              } @else if (task.claimed_by_user_id === identity()?.user_id) {
+                <button type="button" class="secondary" (click)="unclaim(task)">Unclaim</button>
+              }
+              <button type="button" class="link" (click)="openDocument(task.document_id, task)">
+                Review
+              </button>
+            </div>
+          </li>
+        } @empty {
+          <li>No review tasks are available.</li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (selectedDetail(); as detail) {
+    <section class="panel detail" aria-labelledby="detail-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Case workspace</p>
+          <h2 id="detail-title">Document {{ detail.document.id }}</h2>
+          <p>Correlation {{ detail.correlation_id }} · Graph {{ detail.graph_version }}</p>
+        </div>
+        <app-status-badge [status]="detail.document.processing_stage" />
+      </div>
+
+      <div class="stage-strip" aria-label="Processing status">
+        <span>1 Upload stored</span><span>2 Agent advisory</span
+        ><span>3 Authoritative validation</span><strong>4 Human review</strong
+        ><span>5 Integration handoff</span>
+      </div>
+
+      <div class="review-workspace">
+        <section aria-labelledby="pdf-title" class="pdf-pane">
+          <h3 id="pdf-title">Source PDF</h3>
+          @if (pdfUrl(); as url) {
+            <iframe [src]="url" title="Source invoice PDF"></iframe>
+          } @else {
+            <p>Loading protected PDF preview…</p>
+          }
+        </section>
+
+        <section aria-labelledby="fields-title" class="fields-pane">
+          <h3 id="fields-title">Extracted invoice fields</h3>
+          <p>Changes create a reviewed version; the original extraction remains unchanged.</p>
+          @for (field of editableFields(); track field.name; let index = $index) {
+            <article class="field-card">
+              <div class="field-heading">
+                <label [for]="'field-' + field.name">{{ fieldLabel(field.name) }}</label>
+                <span>Confidence {{ field.confidence }} · Page {{ field.pageNumber ?? '—' }}</span>
+              </div>
+              <input
+                [id]="'field-' + field.name"
+                [value]="field.value"
+                [readonly]="selectedTask()?.claimed_by_user_id !== identity()?.user_id"
+                (input)="editValue(index, $event)"
+              />
+              <details>
+                <summary>Evidence</summary>
+                <blockquote>{{ field.evidence || 'No bounded evidence excerpt.' }}</blockquote>
+              </details>
+              @if (field.value !== field.originalValue) {
+                <label [for]="'reason-' + field.name">Correction reason</label>
+                <input
+                  [id]="'reason-' + field.name"
+                  [value]="field.reason"
+                  required
+                  (input)="editReason(index, $event)"
+                />
+              }
+            </article>
+          }
+        </section>
+      </div>
+
+      <div class="insight-grid">
+        <section class="advisory" aria-labelledby="recommendation-title">
+          <p class="authority-label">Advisory — not an approval</p>
+          <h3 id="recommendation-title">Agent recommendation</h3>
+          @if (detail.advisory_recommendation; as recommendation) {
+            <p>
+              <strong>{{ value(recommendation, 'disposition') }}</strong>
+            </p>
+            <p>{{ value(recommendation, 'summary') }}</p>
+          } @else {
+            <p>No recommendation was available; human review remains required.</p>
+          }
+          <h4>Tool activity</h4>
+          <ol>
+            @for (tool of detail.agent_tools; track $index) {
+              <li>
+                {{ value(tool, 'tool') }} — {{ value(tool, 'status') }} ({{
+                  value(tool, 'duration_ms')
+                }}
+                ms)
+              </li>
+            }
+          </ol>
+        </section>
+
+        <section aria-labelledby="validation-title">
+          <h3 id="validation-title">Authoritative validation</h3>
+          <ul class="validation-list">
+            @for (rule of detail.authoritative_validation; track value(rule, 'rule_id')) {
+              <li>
+                <app-status-badge [status]="value(rule, 'outcome')" />
+                <strong>{{ value(rule, 'rule_id') }}</strong> {{ value(rule, 'reason_code') }}
+              </li>
+            } @empty {
+              <li>Validation is not yet available.</li>
+            }
+          </ul>
+        </section>
+
+        <section aria-labelledby="confidence-title">
+          <h3 id="confidence-title">Application confidence</h3>
+          @if (detail.confidence; as confidence) {
+            <p class="score">{{ value(confidence, 'overall_score') }}</p>
+            <p>{{ value(confidence, 'algorithm_version') }} · Advisory prioritization only</p>
+          } @else {
+            <p>Confidence has not been calculated.</p>
+          }
+        </section>
+      </div>
+
+      @if (selectedTask(); as task) {
+        <section class="decision-panel" aria-labelledby="decision-title">
+          <h3 id="decision-title">Authoritative human decision</h3>
+          @if (task.claimed_by_user_id === identity()?.user_id) {
+            <label for="decision-reason">Decision reason</label>
+            <textarea
+              id="decision-reason"
+              rows="3"
+              [value]="decisionReason()"
+              (input)="setDecisionReason($event)"
+            ></textarea>
+            <div class="decision-actions">
+              <button type="button" class="warning" (click)="complete('REQUEST_CORRECTION')">
+                Request correction
+              </button>
+              @if (canApprove()) {
+                <button type="button" class="danger" (click)="complete('REJECT')">Reject</button>
+                <button type="button" (click)="complete('APPROVE')">Approve</button>
+              }
+            </div>
+          } @else {
+            <p>Claim this task before editing fields or recording a decision.</p>
+          }
+        </section>
+      }
+
+      <section aria-labelledby="audit-title">
+        <h3 id="audit-title">Audit timeline</h3>
+        <ol class="timeline">
+          @for (event of detail.audit_timeline; track $index) {
+            <li>
+              <time>{{ value(event, 'created_at') }}</time
+              ><strong>{{ value(event, 'event_type') }}</strong
+              ><span>{{ value(event, 'actor_type') }} · {{ value(event, 'actor_id') }}</span>
+            </li>
+          }
+        </ol>
+      </section>
+    </section>
+  }
+</main>

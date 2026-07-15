@@ -1,0 +1,47 @@
+name: postgres-integration
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  TEST_DATABASE_URL: postgresql+psycopg://document_intake:integration-test-only@localhost:5432/document_intake_test
+  INTAKE_DATABASE_URL: postgresql+psycopg://document_intake:integration-test-only@localhost:5432/document_intake_test
+  LANGGRAPH_STRICT_MSGPACK: "true"
+
+jobs:
+  migrations-integration-checkpoints-e2e:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17.6-alpine3.22
+        env:
+          POSTGRES_DB: document_intake_test
+          POSTGRES_USER: document_intake
+          POSTGRES_PASSWORD: integration-test-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U document_intake -d document_intake_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: 3.12.13 }
+      - uses: astral-sh/setup-uv@v6
+        with: { version: 0.11.18, enable-cache: true }
+      - run: uv sync --frozen
+      - name: Alembic upgrade/downgrade/upgrade validation
+        run: |
+          uv run alembic -c services/api/alembic.ini upgrade head
+          uv run alembic -c services/api/alembic.ini downgrade base
+          uv run alembic -c services/api/alembic.ini upgrade head
+          uv run alembic -c services/api/alembic.ini downgrade base
+      - name: PostgreSQL integration tests
+        run: uv run pytest -m integration
+      - name: Checkpoint persistence tests
+        run: uv run pytest -m "integration and checkpoint"
+      - name: End-to-end first-slice proof
+        run: uv run pytest -m "integration and e2e"

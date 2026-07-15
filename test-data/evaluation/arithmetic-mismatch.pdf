@@ -1,0 +1,19 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 235 >>
+stream
+BT /F1 10 Tf 20 110 Td (SYNTHETIC arithmetic-mismatch invoice_number: INV-1002 invoice_date: 2026-07-02 supplier_name: Synthetic Office Supply purchase_order_number: PO-1002 currency: USD subtotal: 100.00 tax: 8.00 total: 109.00) Tj ET
+endstream
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF

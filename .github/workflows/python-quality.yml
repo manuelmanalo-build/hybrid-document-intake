@@ -1,0 +1,53 @@
+name: python-quality
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ruff:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: 0.11.18, enable-cache: true }
+      - run: uv sync --frozen
+      - run: sh scripts/release_static_checks.sh
+      - run: uv run ruff format --check services apps/dashboard evaluation scripts
+      - run: uv run ruff check services apps/dashboard evaluation scripts
+
+  strict-python-types:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: 3.12.13 }
+      - uses: astral-sh/setup-uv@v6
+        with: { version: 0.11.18, enable-cache: true }
+      - run: uv sync --frozen
+      - run: uv run pyright
+
+  python-unit-and-graph:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: 3.12.13 }
+      - uses: astral-sh/setup-uv@v6
+        with: { version: 0.11.18, enable-cache: true }
+      - run: uv sync --frozen
+      - run: uv run pytest -m "not integration"
+      - name: LangGraph graph tests
+        run: uv run pytest services/orchestrator/tests -m graph
+
+  streamlit-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: 0.11.18, enable-cache: true }
+      - run: uv sync --frozen
+      - run: uv run pytest apps/dashboard/tests

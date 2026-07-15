@@ -1,0 +1,21 @@
+name: containers
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-and-container-builds:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: docker compose --profile test --env-file .env config --quiet
+      - run: docker compose --profile test --env-file .env build
+      - run: docker compose --profile test --env-file .env up -d --wait
+      - run: docker compose --profile test --env-file .env ps
+      - if: always()
+        run: docker compose --profile test --env-file .env down --volumes

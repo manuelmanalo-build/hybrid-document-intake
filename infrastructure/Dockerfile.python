@@ -1,0 +1,21 @@
+FROM ghcr.io/astral-sh/uv:0.11.18 AS uv
+FROM python:3.12.13-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH=/workspace/.venv/bin:$PATH \
+    PYTHONPATH=/workspace/services/api/src:/workspace/services/orchestrator/src:/workspace/services/integration-worker/src:/workspace/services/mock-zapier/src
+
+COPY --from=uv /uv /uvx /bin/
+WORKDIR /workspace
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+COPY services ./services
+COPY contracts ./contracts
+
+RUN addgroup --system intake && adduser --system --ingroup intake intake \
+    && mkdir -p /var/lib/document-intake/objects \
+    && chown -R intake:intake /workspace /var/lib/document-intake
+USER intake

@@ -1,0 +1,16 @@
+{
+  "name": "hybrid-document-intake-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": "24.14.0",
+    "pnpm": "11.7.0"
+  },
+  "scripts": {
+    "web:build": "pnpm --dir apps/web build",
+    "web:format": "pnpm --dir apps/web format:check",
+    "web:lint": "pnpm --dir apps/web lint",
+    "web:test": "pnpm --dir apps/web test"
+  }
+}

@@ -1,0 +1,1 @@
+"""Transactional integration delivery worker."""

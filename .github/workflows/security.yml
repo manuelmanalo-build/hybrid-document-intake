@@ -1,0 +1,37 @@
+name: security
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: 3.12.13 }
+      - uses: astral-sh/setup-uv@v6
+        with: { version: 0.11.18, enable-cache: true }
+      - run: uv sync --frozen
+      - run: uv export --quiet --frozen --no-dev --format requirements-txt --output-file /tmp/requirements.txt
+      - run: uvx --from pip-audit==2.9.0 pip-audit --requirement /tmp/requirements.txt
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.7.0, run_install: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24.14.0, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level high

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:document-intake:document-created-response:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "document_id",
+    "document_version_id",
+    "status",
+    "duplicate_hash_detected",
+    "correlation_id",
+    "graph_run_id",
+    "graph_run_status"
+  ],
+  "properties": {
+    "document_id": { "type": "string", "format": "uuid" },
+    "document_version_id": { "type": "string", "format": "uuid" },
+    "status": { "const": "RECEIVED" },
+    "duplicate_hash_detected": { "type": "boolean" },
+    "correlation_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "graph_run_id": { "type": "string", "format": "uuid" },
+    "graph_run_status": { "const": "REQUESTED" }
+  }
+}

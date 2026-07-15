@@ -1,0 +1,12 @@
+.git
+.env
+.venv
+.pnpm-store
+node_modules
+**/node_modules
+**/dist
+.pytest_cache
+.ruff_cache
+storage
+htmlcov
+*.log

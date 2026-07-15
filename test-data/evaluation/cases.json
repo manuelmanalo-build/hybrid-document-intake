@@ -1,0 +1,546 @@
+[
+  {
+    "case_id": "valid-invoice",
+    "fixture": "valid-invoice.pdf",
+    "expected": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1001",
+        "invoice_date": "2026-07-01",
+        "due_date": "2026-07-31",
+        "supplier_name": "Synthetic Office Supply",
+        "supplier_tax_id": "TAX-DEMO-001",
+        "purchase_order_number": "PO-1001",
+        "currency": "USD",
+        "subtotal": "100.00",
+        "tax": "8.00",
+        "total": "108.00"
+      },
+      "rule_outcomes": { "BR-001": "PASS", "BR-004": "PASS", "BR-006": "PASS" }
+    },
+    "observation": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1001",
+        "invoice_date": "2026-07-01",
+        "due_date": "2026-07-31",
+        "supplier_name": "Synthetic Office Supply",
+        "supplier_tax_id": "TAX-DEMO-001",
+        "purchase_order_number": "PO-1001",
+        "currency": "USD",
+        "subtotal": "100.00",
+        "tax": "8.00",
+        "total": "108.00"
+      },
+      "evidence_fields": [
+        "invoice_number",
+        "invoice_date",
+        "due_date",
+        "supplier_name",
+        "supplier_tax_id",
+        "purchase_order_number",
+        "currency",
+        "subtotal",
+        "tax",
+        "total"
+      ],
+      "executed_tools": [
+        "inspect_document",
+        "classify_document",
+        "extract_invoice_from_text",
+        "lookup_supplier",
+        "lookup_purchase_order",
+        "validate_candidate",
+        "submit_recommendation"
+      ],
+      "extraction_attempts": 1,
+      "rule_outcomes": { "BR-001": "PASS", "BR-004": "PASS", "BR-006": "PASS" },
+      "recommendation": {
+        "document_id": "00000000-0000-4000-8000-000000001001",
+        "document_type": { "value": "AP_INVOICE", "confidence": 0.99 },
+        "recommended_disposition": "HUMAN_REVIEW",
+        "reason_codes": [],
+        "summary": "Synthetic invoice extracted; mandatory review remains.",
+        "requested_human_actions": [],
+        "tools_used": [
+          "inspect_document",
+          "classify_document",
+          "extract_invoice_from_text",
+          "validate_candidate"
+        ],
+        "prompt_version": "document-intake-agent-v1",
+        "agent_policy_version": "1.0"
+      },
+      "corrected_fields": []
+    }
+  },
+  {
+    "case_id": "arithmetic-mismatch",
+    "fixture": "arithmetic-mismatch.pdf",
+    "expected": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1002",
+        "invoice_date": "2026-07-02",
+        "supplier_name": "Synthetic Office Supply",
+        "purchase_order_number": "PO-1002",
+        "currency": "USD",
+        "subtotal": "100.00",
+        "tax": "8.00",
+        "total": "109.00"
+      },
+      "rule_outcomes": { "BR-004": "FAIL" }
+    },
+    "observation": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1002",
+        "invoice_date": "2026-07-02",
+        "supplier_name": "Synthetic Office Supply",
+        "purchase_order_number": "PO-1002",
+        "currency": "USD",
+        "subtotal": "100.00",
+        "tax": "8.00",
+        "total": "109.00"
+      },
+      "evidence_fields": [
+        "invoice_number",
+        "invoice_date",
+        "supplier_name",
+        "purchase_order_number",
+        "currency",
+        "subtotal",
+        "tax",
+        "total"
+      ],
+      "executed_tools": [
+        "inspect_document",
+        "classify_document",
+        "extract_invoice_from_text",
+        "validate_candidate",
+        "retry_extraction",
+        "extract_invoice_from_text",
+        "submit_recommendation"
+      ],
+      "extraction_attempts": 2,
+      "rule_outcomes": { "BR-004": "FAIL" },
+      "recommendation": {
+        "document_id": "00000000-0000-4000-8000-000000001002",
+        "document_type": { "value": "AP_INVOICE", "confidence": 0.98 },
+        "recommended_disposition": "HUMAN_REVIEW",
+        "reason_codes": ["TOTAL_MISMATCH"],
+        "summary": "The printed total does not reconcile and needs review.",
+        "requested_human_actions": ["Confirm total"],
+        "tools_used": [
+          "inspect_document",
+          "classify_document",
+          "extract_invoice_from_text",
+          "validate_candidate",
+          "retry_extraction"
+        ],
+        "prompt_version": "document-intake-agent-v1",
+        "agent_policy_version": "1.0"
+      },
+      "corrected_fields": ["total"]
+    }
+  },
+  {
+    "case_id": "missing-purchase-order",
+    "fixture": "missing-purchase-order.pdf",
+    "expected": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1003",
+        "invoice_date": "2026-07-03",
+        "supplier_name": "Synthetic Equipment",
+        "purchase_order_number": null,
+        "currency": "USD",
+        "subtotal": "12000.00",
+        "tax": "960.00",
+        "total": "12960.00"
+      },
+      "rule_outcomes": { "BR-008": "FAIL" }
+    },
+    "observation": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1003",
+        "invoice_date": "2026-07-03",
+        "supplier_name": "Synthetic Equipment",
+        "purchase_order_number": null,
+        "currency": "USD",
+        "subtotal": "12000.00",
+        "tax": "960.00",
+        "total": "12960.00"
+      },
+      "evidence_fields": [
+        "invoice_number",
+        "invoice_date",
+        "supplier_name",
+        "currency",
+        "subtotal",
+        "tax",
+        "total"
+      ],
+      "executed_tools": [
+        "inspect_document",
+        "classify_document",
+        "extract_invoice_from_text",
+        "validate_candidate",
+        "submit_recommendation"
+      ],
+      "extraction_attempts": 1,
+      "rule_outcomes": { "BR-008": "FAIL" },
+      "recommendation": {
+        "document_id": "00000000-0000-4000-8000-000000001003",
+        "document_type": { "value": "AP_INVOICE", "confidence": 0.97 },
+        "recommended_disposition": "REQUEST_INFORMATION",
+        "reason_codes": ["PO_REQUIRED_ABOVE_THRESHOLD"],
+        "summary": "A purchase order is required for the invoice amount.",
+        "requested_human_actions": ["Provide purchase order"],
+        "tools_used": [
+          "inspect_document",
+          "classify_document",
+          "extract_invoice_from_text",
+          "validate_candidate"
+        ],
+        "prompt_version": "document-intake-agent-v1",
+        "agent_policy_version": "1.0"
+      },
+      "corrected_fields": []
+    }
+  },
+  {
+    "case_id": "inactive-supplier",
+    "fixture": "inactive-supplier.pdf",
+    "expected": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1004",
+        "invoice_date": "2026-07-04",
+        "supplier_name": "Synthetic Inactive Supplier",
+        "purchase_order_number": "PO-1004",
+        "currency": "USD",
+        "subtotal": "200.00",
+        "tax": "16.00",
+        "total": "216.00"
+      },
+      "rule_outcomes": { "BR-011": "FAIL" }
+    },
+    "observation": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1004",
+        "invoice_date": "2026-07-04",
+        "supplier_name": "Synthetic Inactive Supplier",
+        "purchase_order_number": "PO-1004",
+        "currency": "USD",
+        "subtotal": "200.00",
+        "tax": "16.00",
+        "total": "216.00"
+      },
+      "evidence_fields": [
+        "invoice_number",
+        "invoice_date",
+        "supplier_name",
+        "purchase_order_number",
+        "currency",
+        "subtotal",
+        "tax",
+        "total"
+      ],
+      "executed_tools": [
+        "inspect_document",
+        "classify_document",
+        "extract_invoice_from_text",
+        "lookup_supplier",
+        "validate_candidate",
+        "submit_recommendation"
+      ],
+      "extraction_attempts": 1,
+      "rule_outcomes": { "BR-011": "FAIL" },
+      "recommendation": {
+        "document_id": "00000000-0000-4000-8000-000000001004",
+        "document_type": { "value": "AP_INVOICE", "confidence": 0.96 },
+        "recommended_disposition": "HUMAN_REVIEW",
+        "reason_codes": ["SUPPLIER_INACTIVE"],
+        "summary": "The matched supplier is inactive.",
+        "requested_human_actions": ["Verify supplier"],
+        "tools_used": [
+          "inspect_document",
+          "classify_document",
+          "extract_invoice_from_text",
+          "lookup_supplier",
+          "validate_candidate"
+        ],
+        "prompt_version": "document-intake-agent-v1",
+        "agent_policy_version": "1.0"
+      },
+      "corrected_fields": []
+    }
+  },
+  {
+    "case_id": "purchase-order-overage",
+    "fixture": "purchase-order-overage.pdf",
+    "expected": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1005",
+        "invoice_date": "2026-07-05",
+        "supplier_name": "Synthetic Equipment",
+        "purchase_order_number": "PO-LIMIT-100",
+        "currency": "USD",
+        "subtotal": "150.00",
+        "tax": "12.00",
+        "total": "162.00"
+      },
+      "rule_outcomes": { "BR-012": "FAIL" }
+    },
+    "observation": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1005",
+        "invoice_date": "2026-07-05",
+        "supplier_name": "Synthetic Equipment",
+        "purchase_order_number": "PO-LIMIT-100",
+        "currency": "USD",
+        "subtotal": "150.00",
+        "tax": "12.00",
+        "total": "162.00"
+      },
+      "evidence_fields": [
+        "invoice_number",
+        "invoice_date",
+        "supplier_name",
+        "purchase_order_number",
+        "currency",
+        "subtotal",
+        "tax",
+        "total"
+      ],
+      "executed_tools": [
+        "inspect_document",
+        "classify_document",
+        "extract_invoice_from_text",
+        "lookup_purchase_order",
+        "validate_candidate",
+        "submit_recommendation"
+      ],
+      "extraction_attempts": 1,
+      "rule_outcomes": { "BR-012": "FAIL" },
+      "recommendation": {
+        "document_id": "00000000-0000-4000-8000-000000001005",
+        "document_type": { "value": "AP_INVOICE", "confidence": 0.98 },
+        "recommended_disposition": "HUMAN_REVIEW",
+        "reason_codes": ["PO_AMOUNT_EXCEEDED"],
+        "summary": "The invoice exceeds the matched purchase order.",
+        "requested_human_actions": ["Review purchase order amount"],
+        "tools_used": [
+          "inspect_document",
+          "classify_document",
+          "extract_invoice_from_text",
+          "lookup_purchase_order",
+          "validate_candidate"
+        ],
+        "prompt_version": "document-intake-agent-v1",
+        "agent_policy_version": "1.0"
+      },
+      "corrected_fields": []
+    }
+  },
+  {
+    "case_id": "unsupported-document",
+    "fixture": "unsupported-document.pdf",
+    "expected": {
+      "classification": "UNSUPPORTED",
+      "fields": {},
+      "rule_outcomes": { "BR-010": "REVIEW" }
+    },
+    "observation": {
+      "classification": "UNSUPPORTED",
+      "fields": {},
+      "evidence_fields": [],
+      "executed_tools": [
+        "inspect_document",
+        "classify_document",
+        "submit_recommendation"
+      ],
+      "extraction_attempts": 0,
+      "rule_outcomes": { "BR-010": "REVIEW" },
+      "recommendation": {
+        "document_id": "00000000-0000-4000-8000-000000001006",
+        "document_type": { "value": "UNSUPPORTED", "confidence": 0.99 },
+        "recommended_disposition": "REJECT_UNSUPPORTED",
+        "reason_codes": ["UNSUPPORTED_DOCUMENT"],
+        "summary": "The synthetic document is not an AP invoice.",
+        "requested_human_actions": ["Confirm document type"],
+        "tools_used": ["inspect_document", "classify_document"],
+        "prompt_version": "document-intake-agent-v1",
+        "agent_policy_version": "1.0"
+      },
+      "corrected_fields": []
+    }
+  },
+  {
+    "case_id": "low-confidence-invoice",
+    "fixture": "low-confidence-invoice.pdf",
+    "expected": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1007",
+        "invoice_date": "2026-07-07",
+        "supplier_name": "Synthetic Blurred Supply",
+        "currency": "USD",
+        "subtotal": "90.00",
+        "tax": "7.20",
+        "total": "97.20"
+      },
+      "rule_outcomes": { "BR-009": "REVIEW" }
+    },
+    "observation": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-1007",
+        "invoice_date": "2026-07-07",
+        "supplier_name": "Synthetic Blurred Supply",
+        "currency": "USD",
+        "subtotal": "90.00",
+        "tax": "7.20",
+        "total": "97.20"
+      },
+      "evidence_fields": [
+        "invoice_number",
+        "invoice_date",
+        "supplier_name",
+        "currency",
+        "subtotal",
+        "tax",
+        "total"
+      ],
+      "executed_tools": [
+        "inspect_document",
+        "classify_document",
+        "extract_invoice_from_visual_content",
+        "validate_candidate",
+        "submit_recommendation"
+      ],
+      "extraction_attempts": 1,
+      "rule_outcomes": { "BR-009": "REVIEW" },
+      "recommendation": {
+        "document_id": "00000000-0000-4000-8000-000000001007",
+        "document_type": { "value": "AP_INVOICE", "confidence": 0.72 },
+        "recommended_disposition": "HUMAN_REVIEW",
+        "reason_codes": ["CRITICAL_FIELD_LOW_CONFIDENCE"],
+        "summary": "Critical fields have low confidence.",
+        "requested_human_actions": ["Confirm critical fields"],
+        "tools_used": [
+          "inspect_document",
+          "classify_document",
+          "extract_invoice_from_visual_content",
+          "validate_candidate"
+        ],
+        "prompt_version": "document-intake-agent-v1",
+        "agent_policy_version": "1.0"
+      },
+      "corrected_fields": ["supplier_name"]
+    }
+  },
+  {
+    "case_id": "malformed-pdf",
+    "fixture": "malformed.pdf",
+    "expected": {
+      "classification": "UNKNOWN",
+      "fields": {},
+      "rule_outcomes": { "BR-010": "REVIEW" }
+    },
+    "observation": {
+      "classification": "UNKNOWN",
+      "fields": {},
+      "evidence_fields": [],
+      "executed_tools": ["inspect_document", "submit_recommendation"],
+      "extraction_attempts": 0,
+      "rule_outcomes": { "BR-010": "REVIEW" },
+      "recommendation": {
+        "document_id": "00000000-0000-4000-8000-000000001008",
+        "document_type": { "value": "UNKNOWN", "confidence": 0.0 },
+        "recommended_disposition": "HUMAN_REVIEW",
+        "reason_codes": ["AGENT_INCOMPLETE"],
+        "summary": "The malformed fixture could not be inspected.",
+        "requested_human_actions": ["Inspect source"],
+        "tools_used": ["inspect_document"],
+        "prompt_version": "document-intake-agent-v1",
+        "agent_policy_version": "1.0"
+      },
+      "corrected_fields": []
+    }
+  },
+  {
+    "case_id": "duplicate-invoice",
+    "fixture": "duplicate-invoice.pdf",
+    "expected": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-DUP-100",
+        "invoice_date": "2026-07-08",
+        "supplier_name": "Synthetic Office Supply",
+        "purchase_order_number": "PO-1008",
+        "currency": "USD",
+        "subtotal": "50.00",
+        "tax": "4.00",
+        "total": "54.00"
+      },
+      "rule_outcomes": { "BR-007": "FAIL" }
+    },
+    "observation": {
+      "classification": "AP_INVOICE",
+      "fields": {
+        "invoice_number": "INV-DUP-100",
+        "invoice_date": "2026-07-08",
+        "supplier_name": "Synthetic Office Supply",
+        "purchase_order_number": "PO-1008",
+        "currency": "USD",
+        "subtotal": "50.00",
+        "tax": "4.00",
+        "total": "54.00"
+      },
+      "evidence_fields": [
+        "invoice_number",
+        "invoice_date",
+        "supplier_name",
+        "purchase_order_number",
+        "currency",
+        "subtotal",
+        "tax",
+        "total"
+      ],
+      "executed_tools": [
+        "inspect_document",
+        "classify_document",
+        "extract_invoice_from_text",
+        "lookup_supplier",
+        "validate_candidate",
+        "submit_recommendation"
+      ],
+      "extraction_attempts": 1,
+      "rule_outcomes": { "BR-007": "FAIL" },
+      "recommendation": {
+        "document_id": "00000000-0000-4000-8000-000000001009",
+        "document_type": { "value": "AP_INVOICE", "confidence": 0.99 },
+        "recommended_disposition": "HUMAN_REVIEW",
+        "reason_codes": ["DUPLICATE_APPROVED_INVOICE"],
+        "summary": "The supplier and invoice number match an approved invoice.",
+        "requested_human_actions": ["Review duplicate"],
+        "tools_used": [
+          "inspect_document",
+          "classify_document",
+          "extract_invoice_from_text",
+          "lookup_supplier",
+          "validate_candidate"
+        ],
+        "prompt_version": "document-intake-agent-v1",
+        "agent_policy_version": "1.0"
+      },
+      "corrected_fields": []
+    }
+  }
+]
