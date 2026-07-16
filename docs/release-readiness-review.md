@@ -22,61 +22,55 @@ The audit found and corrected high-impact defects in expired-lease recovery, cor
 reconciliation, permanent/transient retry classification, typed tool-output enforcement, failed-tool
 audit persistence, incomplete-agent review, review authority, resume-payload integrity, tenant
 predicates, restart-persistent agent deadlines, prompt registration, immutable-original cleanup, and
-authenticated PDF rendering. Locally executable verification is green.
-
-Release approval is nevertheless blocked. This host has no PostgreSQL client/server and no Docker
-binary, so all seven PostgreSQL integration tests—including migration, `AsyncPostgresSaver`, restart,
-interrupt/resume, transactional outbox, and the end-to-end proof—were collected but skipped. Container
-configuration/build/readiness could not execute. A later ignore-filtered Gitleaks source snapshot
-scan passed, but this workspace still has no Git metadata with which to verify committed history.
-CI defines the remaining gates, but a workflow definition is not evidence of a passing release run.
+authenticated PDF rendering. Locally executable verification is green. A disposable pinned
+PostgreSQL 17.6 container subsequently executed all seven migration, checkpoint, restart,
+interrupt/resume, transactional-outbox, and end-to-end tests successfully. Gitleaks also passed the
+committed history. Full Compose build/readiness and the post-fix GitHub Actions run remain required.
 
 ## Blocking findings
 
-### B-01 — Mandatory PostgreSQL/checkpoint/E2E evidence is absent
+### B-01 — Mandatory PostgreSQL/checkpoint/E2E evidence
 
-Severity: Blocking; status: Open validation gate.
+Severity: Blocking; status: Resolved locally, GitHub Actions rerun pending.
 
 Evidence:
 
-- `pytest -m integration` collected seven tests and skipped all seven because `TEST_DATABASE_URL`
-  was absent.
-- The skipped set includes the persistent checkpoint/restart and complete E2E scenarios in
-  `services/api/tests/integration/test_postgres_intake.py`.
-- Alembic reports a single head, `0004_release_readiness_hardening`, but upgrade/downgrade execution
-  against PostgreSQL was not possible locally.
+- `pytest -m integration` passed all seven tests against the pinned
+  `postgres:17.6-alpine3.22` image.
+- The executed set includes persistent checkpoint/restart, incomplete-agent review,
+  interrupt/resume recovery, authoritative validation separation, transactional outbox, and the
+  complete E2E scenario.
 
-Required release action: run `.github/workflows/postgres-integration.yml` or
-`scripts/run_postgres_integration.sh` against a disposable PostgreSQL database and require every
-integration, checkpoint, migration, and E2E job to pass.
+Required release action: require the corrected `.github/workflows/postgres-integration.yml` run to
+pass on the release commit.
 
 ### B-02 — Compose and container builds were not executed
 
 Severity: Blocking; status: Open validation gate.
 
-Evidence: `docker compose --profile test --env-file .env.example config --quiet` returned exit 127,
-`docker: command not found`. Static YAML parsing passed for `docker-compose.yml` and all five workflow
-files, but it does not validate image availability, Dockerfile execution, health checks, runtime
-users, or dependency readiness.
+Evidence: Docker is now available and the pinned PostgreSQL image passed health and integration
+verification. The complete Compose config/build/up/readiness sequence has not yet passed on the
+post-fix revision, so image builds, runtime users, and cross-service health remain gated.
 
 Required release action: run `.github/workflows/containers.yml` and retain the successful Compose
 config/build/up/health evidence for the release candidate.
 
-### B-03 — Committed-history secret scanner evidence is absent
+### B-03 — Committed-history secret scanner evidence
 
-Severity: Blocking for an independent release sign-off; status: Open validation gate.
+Severity: Blocking for an independent release sign-off; status: Resolved for the initial commit;
+post-fix scan pending.
 
 Evidence: Gitleaks 8.30.1 found eight entries only when scanning ignored local runtime artifacts:
 six in `.env` and two in a dependency source map under `.venv`. Both paths are excluded by
 `.gitignore`. An ignore-filtered source snapshot scan covered approximately 935 KB and returned
-`no leaks found`. The workspace has no `.git` metadata, so the repository's committed history has
-not yet been scanned. The pinned Gitleaks GitHub Actions job must pass on the release revision.
+`no leaks found`. Gitleaks 8.30.1 then scanned the committed history (one commit, approximately
+1.12 MB) and returned `no leaks found`. The pinned Gitleaks job must repeat on the fix commit.
 
 ## High findings
 
 ### H-01 — Final-attempt expired leases could become permanently stranded
 
-Status: Code corrected; unit verified; PostgreSQL verification pending under B-01.
+Status: Code corrected; unit and PostgreSQL integration verified.
 
 Run, resume, and webhook leasing previously excluded rows whose attempt counter had reached the
 maximum, even when a worker died while holding the final lease. The lease queries now always admit
@@ -90,8 +84,8 @@ Evidence:
 - `services/integration-worker/src/intake_integration_worker/worker.py`
 - Unit tests `test_expired_lease_recovery_does_not_consume_an_attempt` and
   `test_expired_webhook_lease_reuses_the_same_delivery_attempt` passed.
-- A PostgreSQL crash-window scenario was added to the E2E test, including a completed later review
-  cycle and an expired old lease at its maximum attempt; execution is pending B-01.
+- The passing PostgreSQL E2E scenario includes a completed later review cycle and an expired old
+  lease at its maximum attempt.
 
 ### H-02 — Tool outputs and failed executions were not durably contract-enforced
 
@@ -113,7 +107,7 @@ Evidence:
 
 ### H-03 — Human-review authority and incomplete-agent recovery had integrity gaps
 
-Status: Code corrected; unit verified; full PostgreSQL path pending B-01.
+Status: Code corrected; unit and full PostgreSQL path verified.
 
 Operations administrators no longer receive reviewer/approver authority; only reviewers/approvers
 may claim, and only approvers may approve or reject. A no-candidate `AGENT_INCOMPLETE` case can now
@@ -126,8 +120,8 @@ Evidence:
 - `services/api/src/intake_api/application/review.py`
 - `services/orchestrator/src/intake_orchestrator/workflow.py`
 - `services/api/alembic/versions/0004_release_readiness_hardening.py`
-- Unit role/bounds/interrupt-size tests passed. The new no-candidate rejection/resume integration
-  test was collected but is pending B-01.
+- Unit role/bounds/interrupt-size tests and the no-candidate rejection/resume integration test
+  passed.
 
 ### H-04 — A post-commit exception could delete an authoritative original
 
@@ -144,7 +138,7 @@ Evidence: `services/api/src/intake_api/application/intake.py` and
 
 ### H-05 — Tenant predicates were inconsistent on primary-key reads
 
-Status: Corrected statically; PostgreSQL isolation verification pending B-01.
+Status: Corrected statically and PostgreSQL tenant-isolation verified.
 
 Production API, orchestrator, agent, and integration-worker primary-key reads were converted to
 explicit tenant-scoped selects where tenant context exists. Composite tenant foreign keys and unique
@@ -155,7 +149,7 @@ contract carries no tenant claim.
 
 ### H-06 — Agent time limit and prompt identity did not survive process restart completely
 
-Status: Corrected and unit verified; PostgreSQL prompt-row verification pending B-01.
+Status: Corrected and unit/PostgreSQL prompt-row verified.
 
 The total agent deadline now derives from the persisted `agent_runs.started_at`, so replay or process
 restart cannot reset it; each model/tool timeout is capped by the remaining total budget. Prompt text
@@ -272,33 +266,37 @@ Changed implementation areas:
   production model configuration, reviewed-version nullability, and Alembic revision 0004.
 - Orchestrator: lease recovery, retry classification, resume reconciliation, parent retries, typed
   tool outputs/failures, provider mapping, persisted deadlines, prompt hash registry, tenant-scoped
-  persistence, and authoritative resume validation.
+  persistence, authoritative resume validation, explicit tenant-FK parent/child flush ordering,
+  phase-scoped audit idempotency, and crash-safe interrupted-status publication.
 - Integration worker: expired final-lease recovery and tenant-scoped ledger/dead-letter reads.
 - Angular: role actions, authenticated PDF resource URL, and navigation accessibility.
 - JavaScript supply-chain policy: replaced pnpm 11's generated build-script placeholders with
   explicit approvals for the four pinned native dependencies required by the Angular build, and
   removed the obsolete `onlyBuiltDependencies` setting.
+- Dependencies/tests: pinned `greenlet` directly for async SQLAlchemy on Apple Silicon, isolated
+  configuration tests from developer `.env` values, and corrected the mock Zapier catch-hook path.
 - Quality: static release architecture checks in `scripts/check.sh` and Python CI; new unit and
   PostgreSQL integration scenarios.
 - Documentation: architecture, state/checkpoint boundaries, tool contracts, audit behavior,
   operations, threat model, scope, checklist, and Zapier callback guarantees corrected to match code.
 - Removed: obsolete `infrastructure/camunda`, `process-models`, and `services/workers` directories.
 
-No finding above is represented as fully verified when its relevant PostgreSQL/container check did
-not execute; those items explicitly remain under B-01/B-02.
+The full multi-container build/readiness path remains explicitly open under B-02. B-01 and B-03
+require confirmation from the post-fix GitHub Actions revision before release sign-off.
 
 ## Deferred issues
 
 The medium and low findings above are intentionally deferred because they require production
 deployment architecture, destructive schema migration, new observability scope, or broader
 accessibility tooling. None grants the agent approval/integration authority or bypasses deterministic
-validation. B-01 through B-03 are validation gates, not accepted deferrals.
+validation. The remaining B-02 and post-fix CI confirmations are validation gates, not accepted
+deferrals.
 
 ## Exact final test results
 
 | Check | Result |
 |---|---|
-| `uv sync --frozen` | Passed: `Checked 110 packages` |
+| `uv sync --frozen` | Passed: `Checked 111 packages` |
 | `sh scripts/release_static_checks.sh` | Passed |
 | Ruff format | Passed: 86 files already formatted |
 | Ruff lint | Passed |
@@ -316,10 +314,10 @@ validation. B-01 through B-03 are validation gates, not accepted deferrals.
 | Clean forced pnpm install | Passed: 656 packages; all four explicitly approved native build scripts completed |
 | Python production dependency audit | Passed: no known vulnerabilities (`pip-audit==2.9.0`) |
 | pnpm dependency audit | Passed: no known vulnerabilities at high threshold |
-| PostgreSQL integration/checkpoint/E2E | **Not passed: 7 skipped**, no `TEST_DATABASE_URL` |
-| Docker Compose/container build/health | **Not run: exit 127**, Docker unavailable |
+| PostgreSQL integration/checkpoint/E2E | Passed: 7 passed, 100 deselected, 1 deprecation warning |
+| Docker Compose/container build/health | **Post-fix full stack not yet run** |
 | Gitleaks source snapshot | Passed: no leaks in approximately 935 KB after excluding `.gitignore` runtime artifacts |
-| Gitleaks committed history | **Not run:** workspace has no `.git` metadata |
+| Gitleaks committed history | Passed: one commit, approximately 1.12 MB, no leaks |
 
 ## Go/no-go recommendation
 

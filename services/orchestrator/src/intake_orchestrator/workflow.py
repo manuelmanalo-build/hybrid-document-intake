@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from intake_api.domain.enums import ActorType, AuditEventType
+from intake_api.domain.enums import ActorType, AuditEventType, GraphRunStatus
 from intake_api.domain.models import (
     AgentRecommendation,
     AgentRun,
@@ -334,7 +334,9 @@ class PostgresWorkflowBackend:
                                     ExtractionFieldEvidence.candidate_id == candidate.id,
                                 )
                             )
-                        ).tuples()
+                        )
+                        .tuples()
+                        .all()
                     )
                     candidate_data = candidate_data.model_copy(
                         update={"field_confidence": confidences}
@@ -395,18 +397,18 @@ class PostgresWorkflowBackend:
                     ),
                 )
                 reasons = _phase_reasons(results, phase)
-                session.add(
-                    ValidationRun(
-                        id=run_id,
-                        tenant_id=tenant_id,
-                        document_id=document_id,
-                        graph_run_id=graph_run_id,
-                        extraction_candidate_id=candidate_id,
-                        phase=stored_phase,
-                        authoritative=True,
-                        reason_codes=reasons,
-                    )
+                validation_run = ValidationRun(
+                    id=run_id,
+                    tenant_id=tenant_id,
+                    document_id=document_id,
+                    graph_run_id=graph_run_id,
+                    extraction_candidate_id=candidate_id,
+                    phase=stored_phase,
+                    authoritative=True,
+                    reason_codes=reasons,
                 )
+                session.add(validation_run)
+                await session.flush([validation_run])
                 for rule_id, name, severity in RULE_DEFINITIONS:
                     definition_id = stable_id(
                         "rule-definition", f"{tenant_id}:{RULESET_VERSION}:{rule_id}"
@@ -491,26 +493,26 @@ class PostgresWorkflowBackend:
                 )
                 risk = _rule_risk(authoritative_reasons)
                 score = decision_confidence(components, rule_based_risk=risk)
-                session.add(
-                    ConfidenceRun(
-                        id=run_id,
-                        tenant_id=tenant_id,
-                        document_id=document_id,
-                        graph_run_id=graph_run_id,
-                        validation_run_id=validation_run_id,
-                        phase=phase,
-                        algorithm_version=ALGORITHM_VERSION,
-                        overall_score=score,
-                        component_scores={
-                            **{
-                                key: str(value) if value is not None else None
-                                for key, value in components.items()
-                            },
-                            "rule_based_risk": str(risk),
-                            "all_cases_require_review": True,
+                confidence_run = ConfidenceRun(
+                    id=run_id,
+                    tenant_id=tenant_id,
+                    document_id=document_id,
+                    graph_run_id=graph_run_id,
+                    validation_run_id=validation_run_id,
+                    phase=phase,
+                    algorithm_version=ALGORITHM_VERSION,
+                    overall_score=score,
+                    component_scores={
+                        **{
+                            key: str(value) if value is not None else None
+                            for key, value in components.items()
                         },
-                    )
+                        "rule_based_risk": str(risk),
+                        "all_cases_require_review": True,
+                    },
                 )
+                session.add(confidence_run)
+                await session.flush([confidence_run])
                 for name, value in components.items():
                     weight = WEIGHTS[name]
                     session.add(
@@ -527,7 +529,7 @@ class PostgresWorkflowBackend:
                     )
                 session.add(
                     _workflow_audit(
-                        kind="confidence",
+                        kind=f"confidence-{phase}",
                         tenant_id=tenant_id,
                         document_id=document_id,
                         graph_run_id=graph_run_id,
@@ -550,6 +552,13 @@ class PostgresWorkflowBackend:
     ) -> UUID:
         task_id = stable_id("review-task", str(graph_run_id))
         async with self._sessions() as session, session.begin():
+            graph_run = await session.scalar(
+                select(GraphRun)
+                .where(GraphRun.id == graph_run_id, GraphRun.tenant_id == tenant_id)
+                .with_for_update()
+            )
+            if graph_run is None or graph_run.document_id != document_id:
+                raise RuntimeError("Review task graph run is unavailable")
             task = await session.scalar(
                 select(ReviewTask)
                 .where(ReviewTask.id == task_id, ReviewTask.tenant_id == tenant_id)
@@ -590,6 +599,10 @@ class PostgresWorkflowBackend:
             task.validation_run_id = validation_run_id
             task.confidence_run_id = confidence_run_id
             task.recommendation_id = recommendation_id
+            # Make the application-owned review task usable even if the orchestrator crashes
+            # after the durable interrupt checkpoint but before dispatcher reconciliation.
+            graph_run.status = GraphRunStatus.INTERRUPTED
+            graph_run.last_error_code = None
         return task_id
 
     async def review_interrupt_payload(
@@ -743,20 +756,20 @@ class PostgresWorkflowBackend:
                 )
             )
             if approved is None:
-                session.add(
-                    ApprovedBusinessRecord(
-                        id=approved_record_id,
-                        tenant_id=tenant_id,
-                        document_id=document_id,
-                        graph_run_id=graph_run_id,
-                        review_decision_id=decision.id,
-                        reviewed_document_version_id=reviewed.id,
-                        record_version=1,
-                        business_data=reviewed.business_data,
-                        approved_by_user_id=decision.decided_by_user_id,
-                        approved_at=decision.created_at,
-                    )
+                approved = ApprovedBusinessRecord(
+                    id=approved_record_id,
+                    tenant_id=tenant_id,
+                    document_id=document_id,
+                    graph_run_id=graph_run_id,
+                    review_decision_id=decision.id,
+                    reviewed_document_version_id=reviewed.id,
+                    record_version=1,
+                    business_data=reviewed.business_data,
+                    approved_by_user_id=decision.decided_by_user_id,
+                    approved_at=decision.created_at,
                 )
+                session.add(approved)
+                await session.flush([approved])
             else:
                 approved.review_decision_id = decision.id
                 approved.reviewed_document_version_id = reviewed.id

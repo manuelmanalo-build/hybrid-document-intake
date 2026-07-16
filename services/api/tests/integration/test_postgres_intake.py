@@ -43,6 +43,8 @@ from intake_api.domain.models import (
     DocumentStatusHistory,
     DocumentVersion,
     ExtractionCandidate,
+    ExtractionFieldEvidence,
+    ExtractionRun,
     GraphResumeRequest,
     GraphRun,
     GraphRunRequest,
@@ -403,6 +405,7 @@ async def test_dispatcher_leases_retries_and_prevents_duplicate_graph_start(
             agent_run = session.scalar(select(AgentRun))
             recommendation = session.scalar(select(AgentRecommendation))
             candidate = session.scalar(select(ExtractionCandidate))
+            extraction_run = session.scalar(select(ExtractionRun))
             tool_names = list(
                 session.scalars(select(AgentToolCall.tool_name).order_by(AgentToolCall.started_at))
             )
@@ -411,6 +414,11 @@ async def test_dispatcher_leases_retries_and_prevents_duplicate_graph_start(
             assert recommendation is not None
             assert recommendation.recommended_disposition != "AUTO_APPROVE"
             assert candidate is not None
+            assert extraction_run is not None
+            assert candidate.extraction_run_id == extraction_run.id
+            assert session.scalar(select(func.count()).select_from(ExtractionFieldEvidence)) == len(
+                candidate.candidate_data
+            )
             prompt_version = session.scalar(select(PromptVersion))
             assert prompt_version is not None
             assert len(prompt_version.content_sha256) == 64
@@ -577,7 +585,23 @@ async def test_dispatcher_leases_retries_and_prevents_duplicate_graph_start(
         with app.state.session_factory() as session:
             assert session.scalar(select(func.count()).select_from(GraphResumeRequest)) == 2
             assert session.scalar(select(func.count()).select_from(ReviewedDocumentVersion)) == 2
-            assert session.scalar(select(func.count()).select_from(ValidationRun)) == 4
+            assert session.scalar(select(func.count()).select_from(ValidationRun)) == 5
+            assert (
+                session.scalar(
+                    select(func.count())
+                    .select_from(ValidationRun)
+                    .where(ValidationRun.authoritative.is_(True))
+                )
+                == 4
+            )
+            assert (
+                session.scalar(
+                    select(func.count())
+                    .select_from(ValidationRun)
+                    .where(ValidationRun.authoritative.is_(False))
+                )
+                == 1
+            )
             assert session.scalar(select(func.count()).select_from(ConfidenceRun)) == 3
             assert session.scalar(select(func.count()).select_from(ApprovedBusinessRecord)) == 1
             assert session.scalar(select(func.count()).select_from(OutboxEvent)) == 1
@@ -592,7 +616,7 @@ async def test_dispatcher_leases_retries_and_prevents_duplicate_graph_start(
             database_url=database_url,
             checkpoint_database_url=database_url,
             storage_root=app.state.settings.storage_root,
-            zapier_hook_url="https://hooks.example.invalid/catch",
+            zapier_hook_url="https://mock-zapier.invalid/hooks/catch",
             zapier_callback_token="integration-callback-secret",
         )
         delivery_client = httpx.AsyncClient(
@@ -683,6 +707,13 @@ async def test_dispatcher_leases_retries_and_prevents_duplicate_graph_start(
                 == stored.sha256
             )
             material_events = set(session.scalars(select(AuditEvent.event_type)))
+            confidence_event_count = session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.event_type == AuditEventType.CONFIDENCE_CALCULATED)
+            )
+            assert confidence_event_count is not None
+            assert confidence_event_count >= 2
             assert {
                 AuditEventType.UPLOAD_RECEIVED,
                 AuditEventType.FILE_VALIDATION_PASSED,

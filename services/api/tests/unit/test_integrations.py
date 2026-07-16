@@ -40,7 +40,7 @@ def test_replay_rejects_non_operations_role_before_database_access() -> None:
 
 
 def test_callback_rejects_when_optional_authentication_is_not_configured() -> None:
-    service = IntegrationAdminService(Settings(), unused_sessions())
+    service = IntegrationAdminService(Settings(zapier_callback_token=None), unused_sessions())
 
     with pytest.raises(AuthenticationUnavailable):
         service.callback(callback(), None)

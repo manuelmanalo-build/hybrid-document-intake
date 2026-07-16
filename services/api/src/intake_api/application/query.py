@@ -618,7 +618,7 @@ class QueryService:
         row = session.execute(statement).one_or_none()
         if row is None:
             raise ResourceNotFound("The document was not found.")
-        return row.tuple()
+        return row[0], row[1], row[2]
 
 
 def _summary(document: Document, run: GraphRun, review: ReviewTask | None) -> DocumentSummary:

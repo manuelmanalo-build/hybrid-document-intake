@@ -445,4 +445,9 @@ def test_provider_factories_use_configured_model_without_network_calls() -> None
 @pytest.mark.parametrize("provider", ["openai", "gemini"])
 def test_live_provider_configuration_requires_its_credential(provider: str) -> None:
     with pytest.raises(ValidationError, match="API_KEY"):
-        Settings(agent_provider=provider, agent_model="configured-model")
+        Settings(
+            agent_provider=provider,
+            agent_model="configured-model",
+            openai_api_key=None,
+            google_api_key=None,
+        )

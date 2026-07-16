@@ -561,33 +561,36 @@ class PostgresAgentBackend:
             result["reason_codes"] = (
                 [] if completeness == Decimal("1.0000") else ["EXTRACTION_INCOMPLETE"]
             )
-            session.add(
-                ExtractionRun(
-                    id=run_id,
-                    tenant_id=tenant_id,
-                    document_id=document_id,
-                    agent_run_id=agent_run_id,
-                    operation_key=operation_key,
-                    strategy=strategy,
-                    attempt_number=parsed.attempt_number,
-                    provider=self._provider,
-                    model=self._model,
-                    prompt_version=self._prompt_version,
-                    schema_version="ap-invoice-v1",
-                    status="COMPLETED",
-                )
+            extraction_run = ExtractionRun(
+                id=run_id,
+                tenant_id=tenant_id,
+                document_id=document_id,
+                agent_run_id=agent_run_id,
+                operation_key=operation_key,
+                strategy=strategy,
+                attempt_number=parsed.attempt_number,
+                provider=self._provider,
+                model=self._model,
+                prompt_version=self._prompt_version,
+                schema_version="ap-invoice-v1",
+                status="COMPLETED",
             )
-            session.add(
-                ExtractionCandidate(
-                    id=candidate_id,
-                    tenant_id=tenant_id,
-                    document_id=document_id,
-                    extraction_run_id=run_id,
-                    document_type="AP_INVOICE",
-                    candidate_data=candidate_data,
-                    completeness_score=completeness,
-                )
+            session.add(extraction_run)
+            # These models intentionally expose identifiers rather than ORM relationships.
+            # Flush each parent before its composite tenant-scoped child so PostgreSQL never
+            # observes a candidate or evidence row before the referenced record exists.
+            await session.flush([extraction_run])
+            extraction_candidate = ExtractionCandidate(
+                id=candidate_id,
+                tenant_id=tenant_id,
+                document_id=document_id,
+                extraction_run_id=run_id,
+                document_type="AP_INVOICE",
+                candidate_data=candidate_data,
+                completeness_score=completeness,
             )
+            session.add(extraction_candidate)
+            await session.flush([extraction_candidate])
             for field_name in APInvoiceCandidate.model_fields:
                 field = getattr(structured, field_name)
                 session.add(
@@ -668,7 +671,9 @@ class PostgresAgentBackend:
                             ExtractionFieldEvidence.candidate_id == candidate.id,
                         )
                     )
-                ).tuples()
+                )
+                .tuples()
+                .all()
             )
             candidate_data = candidate_data.model_copy(
                 update={"field_confidence": field_confidence}
@@ -711,18 +716,18 @@ class PostgresAgentBackend:
             )
             reasons = failing_reason_codes(results)
             validation_id = stable_id("agent-validation", operation_key)
-            session.add(
-                ValidationRun(
-                    id=validation_id,
-                    tenant_id=tenant_id,
-                    document_id=document_id,
-                    graph_run_id=self._graph_run_id,
-                    extraction_candidate_id=candidate.id,
-                    phase=f"AGENT_{operation_key[:20]}",
-                    authoritative=False,
-                    reason_codes=reasons,
-                )
+            validation_run = ValidationRun(
+                id=validation_id,
+                tenant_id=tenant_id,
+                document_id=document_id,
+                graph_run_id=self._graph_run_id,
+                extraction_candidate_id=candidate.id,
+                phase=f"AGENT_{operation_key[:20]}",
+                authoritative=False,
+                reason_codes=reasons,
             )
+            session.add(validation_run)
+            await session.flush([validation_run])
             for rule_result in results:
                 session.add(
                     ValidationResult(
@@ -849,7 +854,7 @@ async def _graph_identity(
     identity = row.one_or_none()
     if identity is None:
         raise RuntimeError("Graph run does not exist")
-    return identity.tuple()
+    return identity[0], identity[1]
 
 
 async def _approved_duplicate_exists(

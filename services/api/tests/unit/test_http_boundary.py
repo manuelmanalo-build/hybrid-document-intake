@@ -70,4 +70,8 @@ def test_production_configuration_rejects_demo_authentication() -> None:
 
 def test_live_provider_configuration_requires_explicit_model_name() -> None:
     with pytest.raises(ValidationError, match="AGENT_MODEL must be explicitly configured"):
-        Settings(agent_provider="openai", openai_api_key="test-only-key")
+        Settings(
+            agent_provider="openai",
+            agent_model="deterministic-stub-v1",
+            openai_api_key="test-only-key",
+        )
