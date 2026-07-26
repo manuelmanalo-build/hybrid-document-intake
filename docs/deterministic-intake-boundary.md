@@ -1,8 +1,9 @@
 # Deterministic Intake Boundary
 
 `POST /api/v1/documents` accepts one multipart PDF, requires `Idempotency-Key`, and accepts an
-optional `X-Correlation-ID`. FastAPI validates a local-demo bearer credential with constant-time
-comparison and derives tenant, submitter, and `SUBMITTER` role from trusted configuration.
+optional `X-Correlation-ID`. FastAPI validates either a local-demo bearer credential with
+constant-time comparison or an opaque local role session, then derives tenant, submitter, and
+`SUBMITTER` role from trusted configuration.
 
 The request streams in configured chunks to private staging storage. The pass enforces the byte
 limit, retains a bounded header sample, and calculates SHA-256. Acceptance requires a non-empty body,

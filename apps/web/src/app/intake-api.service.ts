@@ -5,6 +5,11 @@ import { Observable } from 'rxjs';
 export type UserRole = 'SUBMITTER' | 'REVIEWER' | 'APPROVER' | 'OPERATIONS_ADMIN' | 'AUDITOR';
 export type ReviewDecision = 'APPROVE' | 'REJECT' | 'REQUEST_CORRECTION';
 
+export interface DemoAuthOptions {
+  readonly roles: readonly UserRole[];
+  readonly session_ttl_seconds: number;
+}
+
 export interface SessionIdentity {
   readonly tenant_id: string;
   readonly user_id: string;
@@ -94,22 +99,48 @@ export class IntakeApiService {
       headers: this.headers(accessToken).set('Idempotency-Key', idempotencyKey),
       observe: 'events',
       reportProgress: true,
+      withCredentials: true,
     });
   }
 
   session(token: string): Observable<SessionIdentity> {
-    return this.http.get<SessionIdentity>('/api/v1/session', { headers: this.headers(token) });
+    return this.http.get<SessionIdentity>('/api/v1/session', {
+      headers: this.headers(token),
+      withCredentials: true,
+    });
+  }
+
+  demoAuthOptions(): Observable<DemoAuthOptions> {
+    return this.http.get<DemoAuthOptions>('/api/v1/demo-auth/options', {
+      withCredentials: true,
+    });
+  }
+
+  connectDemo(role: UserRole): Observable<SessionIdentity> {
+    return this.http.post<SessionIdentity>(
+      '/api/v1/demo-auth/session',
+      { role },
+      { withCredentials: true },
+    );
+  }
+
+  disconnectDemo(): Observable<null> {
+    return this.http.delete<null>('/api/v1/demo-auth/session', {
+      withCredentials: true,
+    });
   }
 
   documents(token: string): Observable<readonly DocumentSummary[]> {
     return this.http.get<readonly DocumentSummary[]>('/api/v1/documents', {
       headers: this.headers(token),
+      withCredentials: true,
     });
   }
 
   document(id: string, token: string): Observable<DocumentDetail> {
     return this.http.get<DocumentDetail>(`/api/v1/documents/${id}`, {
       headers: this.headers(token),
+      withCredentials: true,
     });
   }
 
@@ -117,24 +148,28 @@ export class IntakeApiService {
     return this.http.get(`/api/v1/documents/${id}/content`, {
       headers: this.headers(token),
       responseType: 'blob',
+      withCredentials: true,
     });
   }
 
   reviewTasks(token: string): Observable<readonly ReviewTask[]> {
     return this.http.get<readonly ReviewTask[]>('/api/v1/review-tasks', {
       headers: this.headers(token),
+      withCredentials: true,
     });
   }
 
   claim(taskId: string, token: string): Observable<ReviewTask> {
     return this.http.post<ReviewTask>(`/api/v1/review-tasks/${taskId}/claim`, null, {
       headers: this.headers(token),
+      withCredentials: true,
     });
   }
 
   unclaim(taskId: string, token: string): Observable<ReviewTask> {
     return this.http.post<ReviewTask>(`/api/v1/review-tasks/${taskId}/unclaim`, null, {
       headers: this.headers(token),
+      withCredentials: true,
     });
   }
 
@@ -148,11 +183,12 @@ export class IntakeApiService {
     return this.http.post<Record<string, unknown>>(
       `/api/v1/review-tasks/${taskId}/complete`,
       { decision, reason, field_corrections: fieldCorrections },
-      { headers: this.headers(token) },
+      { headers: this.headers(token), withCredentials: true },
     );
   }
 
   private headers(token: string): HttpHeaders {
-    return new HttpHeaders({ Authorization: `Bearer ${token}` });
+    const headers = new HttpHeaders();
+    return token ? headers.set('Authorization', `Bearer ${token}`) : headers;
   }
 }

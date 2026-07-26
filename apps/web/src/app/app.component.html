@@ -5,21 +5,40 @@
     <h1>Document intake</h1>
   </div>
   <div class="session">
-    <label for="access-token">FastAPI access token</label>
-    <div class="session-row">
-      <input
-        id="access-token"
-        type="password"
-        autocomplete="off"
-        [value]="accessToken()"
-        (input)="setAccessToken($event)"
-      />
-      <button type="button" class="secondary" (click)="connect()" [disabled]="busy()">
-        Connect
-      </button>
-    </div>
+    @if (demoAuthAvailable()) {
+      <label for="demo-role">Local demo role</label>
+      <div class="session-row demo-session">
+        <select id="demo-role" [value]="selectedDemoRole()" (change)="setDemoRole($event)">
+          @for (role of demoRoles; track role) {
+            <option [value]="role">{{ role.replaceAll('_', ' ') }}</option>
+          }
+        </select>
+        <button type="button" class="secondary" (click)="connectDemo()" [disabled]="busy()">
+          Connect as role
+        </button>
+      </div>
+    } @else {
+      <label for="access-token">FastAPI access token</label>
+      <div class="session-row">
+        <input
+          id="access-token"
+          type="password"
+          autocomplete="off"
+          [value]="accessToken()"
+          (input)="setAccessToken($event)"
+        />
+        <button type="button" class="secondary" (click)="connect()" [disabled]="busy()">
+          Connect
+        </button>
+      </div>
+    }
     @if (identity(); as actor) {
-      <span class="actor">{{ actor.role.replaceAll('_', ' ') }} · {{ actor.subject }}</span>
+      <div class="session-status">
+        <span class="actor">{{ actor.role.replaceAll('_', ' ') }} · {{ actor.subject }}</span>
+        <button type="button" class="secondary compact" (click)="signOut()" [disabled]="busy()">
+          Sign out
+        </button>
+      </div>
     }
   </div>
 </header>
@@ -88,12 +107,16 @@
         <p class="key">
           Idempotency key: <code>{{ idempotencyKey() }}</code>
         </p>
-        <button
-          type="submit"
-          [disabled]="selectedFile() === null || !accessToken() || submitting()"
-        >
+        <button type="submit" [disabled]="selectedFile() === null || !canSubmit() || submitting()">
           {{ submitting() ? 'Uploading…' : 'Upload invoice' }}
         </button>
+        @if (selectedFile() !== null && !identity()) {
+          <p class="form-hint">Connect as a submitter to enable upload.</p>
+        } @else if (selectedFile() !== null && !canSubmit()) {
+          <p class="form-hint">
+            The connected {{ identity()?.role }} role cannot submit documents.
+          </p>
+        }
         @if (submitting() || uploadProgress() > 0) {
           <label for="upload-progress">Upload progress: {{ uploadProgress() }}%</label>
           <progress id="upload-progress" max="100" [value]="uploadProgress()">

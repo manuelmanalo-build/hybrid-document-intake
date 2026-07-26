@@ -42,7 +42,7 @@ class AuthenticationRequired(ProblemException):
         super().__init__(
             401,
             "Authentication required",
-            "A valid bearer credential is required.",
+            "A valid credential or development session is required.",
             "authentication-required",
         )
 

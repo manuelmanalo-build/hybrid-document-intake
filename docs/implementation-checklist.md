@@ -28,6 +28,8 @@ implementations.
 - [x] RFC 9457 errors, structured logging, unit tests, and optional PostgreSQL integration tests.
 - [ ] Add production object storage adapter and malware/content safety inspection.
 - [ ] Replace local demo bearer identity with production OIDC/JWT validation.
+- [x] Add loopback-only, production-rejected local role sessions so Angular and Streamlit do not
+  require bearer-token copy/paste.
 
 ## Durable orchestration
 
@@ -83,7 +85,8 @@ implementations.
 ## Operations and quality
 
 - [x] Expand dashboard through FastAPI with run/review/agent/rule/confidence/outbox operations views.
-- [x] Add local/test mock Zapier, deterministic evaluation fixtures/harness, and optional LangSmith export.
+- [x] Add local/test mock Zapier, deterministic readable evaluation PDFs with fixture-content
+  regression coverage, the offline harness, and optional LangSmith export.
 - [x] Add split GitHub Actions for Python, graph/checkpoint/E2E, Angular, containers, secrets, and dependencies.
 - [ ] Add safe health/readiness, lease lag, failure, checkpoint, model usage, and delivery metrics.
 - [x] Add CI static forbidden-reference checks for legacy runtime references, direct Streamlit

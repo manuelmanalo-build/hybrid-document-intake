@@ -3,20 +3,45 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from pdf_fixture_writer import build_text_pdf
 
-def pdf_bytes(lines: list[str]) -> bytes:
-    escaped = " ".join(lines).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-    stream = f"BT /F1 10 Tf 20 110 Td ({escaped}) Tj ET".encode()
-    return (
-        b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-        b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-        b"/Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length "
-        + str(len(stream)).encode()
-        + b" >>\nstream\n"
-        + stream
-        + b"\nendstream\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
-    )
+FIELD_LABELS = {
+    "invoice_number": "Invoice number",
+    "invoice_date": "Invoice date",
+    "due_date": "Due date",
+    "supplier_name": "Supplier",
+    "supplier_tax_id": "Supplier tax ID",
+    "purchase_order_number": "Purchase order",
+    "currency": "Currency",
+    "subtotal": "Subtotal",
+    "tax": "Tax",
+    "total": "Total",
+}
+
+
+def fixture_lines(case_id: str, fields: dict[str, object]) -> list[str]:
+    if not fields:
+        return [
+            "SYNTHETIC TEST FIXTURE - DELIVERY NOTE",
+            f"Scenario: {case_id}",
+            "Document reference: DN-1006",
+            "Document type: Delivery note (intentionally not an AP invoice)",
+            "Purpose: unsupported-document classification test",
+            "All names and identifiers are fictional.",
+        ]
+
+    lines = [
+        "SYNTHETIC TEST FIXTURE - AP INVOICE",
+        f"Scenario: {case_id}",
+        "All names, identifiers, dates, and amounts are fictional.",
+        "",
+    ]
+    for field_name, value in fields.items():
+        if value is not None:
+            lines.append(f"{FIELD_LABELS[field_name]}: {value}")
+    if case_id == "low-confidence-invoice":
+        lines.append("Fixture note: simulates a low-confidence visual extraction case.")
+    return lines
 
 
 def main() -> None:
@@ -28,10 +53,7 @@ def main() -> None:
             target.write_bytes(b"This is intentionally not a PDF.")
             continue
         fields = case["expected"]["fields"]
-        lines = [f"SYNTHETIC {case['case_id']}"] + [
-            f"{key}: {value}" for key, value in fields.items()
-        ]
-        target.write_bytes(pdf_bytes(lines))
+        target.write_bytes(build_text_pdf(fixture_lines(case["case_id"], fields)))
 
 
 if __name__ == "__main__":

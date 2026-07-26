@@ -32,6 +32,25 @@ describe('IntakeApiService', () => {
     expect(request.request.headers.get('Idempotency-Key')).toBe('stable-key');
     expect(request.request.headers.get('Authorization')).toBe('Bearer submitter-token');
     expect(request.request.body).toBeInstanceOf(FormData);
+    expect(request.request.withCredentials).toBe(true);
+  });
+
+  it('creates an HttpOnly-backed demo role session without a bearer credential', () => {
+    service.connectDemo('AUDITOR').subscribe();
+
+    const request = http.expectOne('/api/v1/demo-auth/session');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ role: 'AUDITOR' });
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    expect(request.request.withCredentials).toBe(true);
+  });
+
+  it('uses the demo session cookie when no bearer token is supplied', () => {
+    service.documents('').subscribe();
+
+    const request = http.expectOne('/api/v1/documents');
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    expect(request.request.withCredentials).toBe(true);
   });
 
   it('sends review corrections and decisions only to FastAPI', () => {

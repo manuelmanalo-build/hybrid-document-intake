@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import Header, Request
 
+from intake_api.application.demo_sessions import DEMO_SESSION_COOKIE, DemoSessionStore
 from intake_api.application.identity import RequestIdentity, configured_actor
 from intake_api.application.intake import IntakeService
 from intake_api.application.integrations import IntegrationAdminService
@@ -28,22 +29,32 @@ def get_identity(
         }.items()
         if token is not None
     }
-    if not configured:
+    if authorization:
+        scheme, separator, supplied_token = authorization.partition(" ")
+        if separator != " " or scheme.lower() != "bearer" or not supplied_token:
+            raise AuthenticationRequired
+        role = next(
+            (
+                candidate_role
+                for candidate_role, token in configured.items()
+                if secrets.compare_digest(token.get_secret_value(), supplied_token)
+            ),
+            None,
+        )
+        if role is None:
+            raise AuthenticationRequired
+        return configured_actor(settings, role)
+
+    store: DemoSessionStore | None = request.app.state.demo_session_store
+    session_token = request.cookies.get(DEMO_SESSION_COOKIE)
+    if store is not None and session_token:
+        role = store.resolve(session_token)
+        if role is not None:
+            return configured_actor(settings, role)
+
+    if not configured and store is None:
         raise AuthenticationUnavailable
-    scheme, separator, supplied_token = (authorization or "").partition(" ")
-    if separator != " " or scheme.lower() != "bearer" or not supplied_token:
-        raise AuthenticationRequired
-    role = next(
-        (
-            candidate_role
-            for candidate_role, token in configured.items()
-            if secrets.compare_digest(token.get_secret_value(), supplied_token)
-        ),
-        None,
-    )
-    if role is None:
-        raise AuthenticationRequired
-    return configured_actor(settings, role)
+    raise AuthenticationRequired
 
 
 def get_intake_service(request: Request) -> IntakeService:

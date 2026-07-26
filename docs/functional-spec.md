@@ -20,6 +20,9 @@ human review; agent output can never approve or reject authoritatively.
 
 Server-side authorization is definitive. UI visibility is convenience only.
 
+The local profile provides development-only one-click role sessions. FastAPI remains the identity
+authority, configured bearer tokens are never returned to a UI, and production rejects this mode.
+
 ## Primary journey
 
 1. Validate authentication, idempotency key, correlation ID, PDF type/magic, and size.

@@ -8,7 +8,7 @@ a web process staying alive.
 
 ```mermaid
 flowchart LR
-  B["Angular browser"] -->|"HTTPS + bearer token"| A["FastAPI"]
+  B["Angular browser"] -->|"HTTPS + session or bearer"| A["FastAPI"]
   D["Streamlit dashboard"] -->|"operations APIs"| A
   A -->|"business transaction"| P[("PostgreSQL application data")]
   A -->|"immutable storage port"| O["Object storage"]
@@ -24,6 +24,11 @@ flowchart LR
 The API and orchestrator use distinct processes and least-privilege identities. The dashboard cannot
 write application tables. Browsers never connect to graph/checkpoint, database, model, storage, or
 integration endpoints directly.
+
+In the local profile, FastAPI may issue opaque, expiring, process-local role sessions. Angular uses
+the HttpOnly cookie through its same-origin proxy, while Streamlit keeps its cookie in a server-side
+HTTP client. Configured bearer tokens remain available to non-browser clients and are never
+returned to either UI. Production rejects both development authentication mechanisms.
 
 ## Transaction boundaries
 

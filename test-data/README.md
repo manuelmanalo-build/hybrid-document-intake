@@ -5,3 +5,12 @@ Only synthetic, non-sensitive fixtures belong here. `minimal.pdf` is generated d
 `scripts/generate_evaluation_fixtures.py` and cover valid invoice, arithmetic mismatch, missing PO,
 inactive supplier, PO overage, unsupported document, low confidence, malformed PDF, and duplicate
 invoice. Names, identifiers, amounts, and evidence are fictional and redistributable.
+
+The eight valid evaluation PDFs are standards-compliant, visually populated, and have extractable
+text matching the synthetic values in `cases.json`. `malformed.pdf` is intentionally invalid. To
+rebuild the checked-in fixtures deterministically, run:
+
+```bash
+uv run python scripts/generate_test_pdf.py
+uv run python scripts/generate_evaluation_fixtures.py
+```

@@ -8,6 +8,7 @@ x-python-service: &python-service
   environment:
     INTAKE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
     INTAKE_STORAGE_ROOT: /var/lib/document-intake/objects
+    INTAKE_DEMO_ROLE_LOGIN_ENABLED: ${INTAKE_DEMO_ROLE_LOGIN_ENABLED:-true}
   restart: unless-stopped
 
 x-database-healthcheck: &database-healthcheck
@@ -67,7 +68,7 @@ services:
     volumes:
       - document-objects:/var/lib/document-intake/objects
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       bootstrap-data:
         condition: service_completed_successfully
@@ -119,8 +120,9 @@ services:
       dockerfile: infrastructure/Dockerfile.dashboard
     environment:
       DASHBOARD_API_BASE_URL: http://fastapi-api:8000
+      DASHBOARD_DEMO_ROLE_LOGIN_ENABLED: ${INTAKE_DEMO_ROLE_LOGIN_ENABLED:-true}
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     depends_on:
       fastapi-api:
         condition: service_healthy
@@ -143,7 +145,7 @@ services:
       context: .
       dockerfile: infrastructure/Dockerfile.web
     ports:
-      - "4200:8080"
+      - "127.0.0.1:4200:8080"
     depends_on:
       fastapi-api:
         condition: service_healthy
@@ -160,7 +162,7 @@ services:
     command: ["uvicorn", "mock_zapier.main:app", "--host", "0.0.0.0", "--port", "8090"]
     profiles: ["local", "test"]
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
     healthcheck:
       test:
         [

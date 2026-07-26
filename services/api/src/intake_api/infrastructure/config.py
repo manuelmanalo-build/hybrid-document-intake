@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     demo_approver_token: SecretStr | None = None
     demo_operations_admin_token: SecretStr | None = None
     demo_auditor_token: SecretStr | None = None
+    demo_role_login_enabled: bool = False
+    demo_session_ttl_seconds: PositiveInt = Field(default=8 * 60 * 60, le=24 * 60 * 60)
+    demo_session_max_active: PositiveInt = Field(default=100, le=1000)
     graph_version: str = "document-intake-v1"
     checkpoint_database_url: str | None = None
     graph_request_max_attempts: PositiveInt = 5
@@ -93,16 +96,19 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_agent_provider_credentials(self) -> "Settings":
-        if self.environment.casefold() in {"production", "prod"} and any(
-            (
-                self.demo_submitter_token,
-                self.demo_reviewer_token,
-                self.demo_approver_token,
-                self.demo_operations_admin_token,
-                self.demo_auditor_token,
-            )
-        ):
-            raise ValueError("Development bearer authentication is forbidden in production")
+        if self.environment.casefold() in {"production", "prod"}:
+            if self.demo_role_login_enabled:
+                raise ValueError("Development role authentication is forbidden in production")
+            if any(
+                (
+                    self.demo_submitter_token,
+                    self.demo_reviewer_token,
+                    self.demo_approver_token,
+                    self.demo_operations_admin_token,
+                    self.demo_auditor_token,
+                )
+            ):
+                raise ValueError("Development bearer authentication is forbidden in production")
         if self.agent_provider == "openai" and self.openai_api_key is None:
             raise ValueError("OPENAI_API_KEY is required when AGENT_PROVIDER=openai")
         if self.agent_provider == "gemini" and self.google_api_key is None:

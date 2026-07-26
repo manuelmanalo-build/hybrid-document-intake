@@ -59,10 +59,24 @@ h1 {
 .session-row input {
   flex: 1;
 }
+.session-row select {
+  flex: 1;
+}
+.session-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
 .actor {
   display: block;
   margin-top: 0.4rem;
   font-size: 0.8rem;
+}
+.compact {
+  padding: 0.3rem 0.55rem;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
 }
 nav {
   display: flex;
@@ -118,6 +132,7 @@ label {
   text-transform: capitalize;
 }
 input,
+select,
 textarea {
   width: 100%;
   box-sizing: border-box;
@@ -126,6 +141,11 @@ textarea {
   padding: 0.7rem;
   font: inherit;
   background: #fff;
+}
+.form-hint {
+  margin-bottom: 0;
+  color: #5a3b00;
+  font-size: 0.85rem;
 }
 input[readonly] {
   background: #eef1f5;

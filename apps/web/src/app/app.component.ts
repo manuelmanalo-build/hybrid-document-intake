@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnDestroy,
+  OnInit,
   computed,
   inject,
   signal,
@@ -39,7 +40,7 @@ interface EditableField {
   styleUrl: './app.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AppComponent implements OnDestroy {
+export class AppComponent implements OnDestroy, OnInit {
   private readonly api = inject(IntakeApiService);
   private readonly sanitizer = inject(DomSanitizer);
   private pdfObjectUrl: string | null = null;
@@ -50,6 +51,10 @@ export class AppComponent implements OnDestroy {
     localStorage.getItem('document-intake-idempotency-key') ?? crypto.randomUUID(),
   );
   protected readonly accessToken = signal('');
+  protected readonly demoAuthAvailable = signal(false);
+  protected readonly demoRoles = ['SUBMITTER', 'REVIEWER', 'APPROVER'] as const;
+  protected readonly selectedDemoRole = signal<(typeof this.demoRoles)[number]>('SUBMITTER');
+  protected readonly usingDemoSession = signal(false);
   protected readonly identity = signal<SessionIdentity | null>(null);
   protected readonly submitting = signal(false);
   protected readonly uploadProgress = signal(0);
@@ -68,9 +73,21 @@ export class AppComponent implements OnDestroy {
     ['REVIEWER', 'APPROVER'].includes(this.identity()?.role ?? ''),
   );
   protected readonly canApprove = computed(() => this.identity()?.role === 'APPROVER');
+  protected readonly canSubmit = computed(() => this.identity()?.role === 'SUBMITTER');
 
   constructor() {
     localStorage.setItem('document-intake-idempotency-key', this.idempotencyKey());
+  }
+
+  ngOnInit(): void {
+    this.api.demoAuthOptions().subscribe({
+      next: () => {
+        this.demoAuthAvailable.set(true);
+      },
+      error: () => {
+        this.demoAuthAvailable.set(false);
+      },
+    });
   }
 
   ngOnDestroy(): void {
@@ -88,16 +105,21 @@ export class AppComponent implements OnDestroy {
     this.accessToken.set((event.target as HTMLInputElement).value);
   }
 
+  protected setDemoRole(event: Event): void {
+    const role = (event.target as HTMLSelectElement).value;
+    if (this.demoRoles.includes(role as (typeof this.demoRoles)[number])) {
+      this.selectedDemoRole.set(role as (typeof this.demoRoles)[number]);
+    }
+  }
+
   protected connect(): void {
     if (!this.accessToken()) return;
     this.busy.set(true);
     this.clearMessages();
     this.api.session(this.accessToken()).subscribe({
       next: (identity) => {
-        this.identity.set(identity);
-        this.busy.set(false);
-        this.refreshDocuments();
-        if (this.canReview()) this.refreshReviewQueue();
+        this.usingDemoSession.set(false);
+        this.establishIdentity(identity);
       },
       error: () => {
         this.fail('Authentication failed. Check the FastAPI demo credential.');
@@ -105,9 +127,40 @@ export class AppComponent implements OnDestroy {
     });
   }
 
+  protected connectDemo(): void {
+    this.busy.set(true);
+    this.clearMessages();
+    this.api.connectDemo(this.selectedDemoRole()).subscribe({
+      next: (identity) => {
+        this.accessToken.set('');
+        this.usingDemoSession.set(true);
+        this.establishIdentity(identity);
+      },
+      error: () => {
+        this.fail('The local demo session could not be established.');
+      },
+    });
+  }
+
+  protected signOut(): void {
+    if (!this.usingDemoSession()) {
+      this.clearIdentity();
+      return;
+    }
+    this.busy.set(true);
+    this.api.disconnectDemo().subscribe({
+      next: () => {
+        this.clearIdentity();
+      },
+      error: () => {
+        this.fail('The local demo session could not be closed.');
+      },
+    });
+  }
+
   protected submit(): void {
     const file = this.selectedFile();
-    if (file === null || !this.accessToken() || this.submitting()) return;
+    if (file === null || !this.canSubmit() || this.submitting()) return;
     this.submitting.set(true);
     this.uploadProgress.set(0);
     this.clearMessages();
@@ -242,7 +295,7 @@ export class AppComponent implements OnDestroy {
   }
 
   private refreshDocuments(): void {
-    if (!this.accessToken()) return;
+    if (!this.identity()) return;
     this.api.documents(this.accessToken()).subscribe({
       next: (documents) => {
         this.documents.set(documents);
@@ -254,7 +307,7 @@ export class AppComponent implements OnDestroy {
   }
 
   private refreshReviewQueue(): void {
-    if (!this.accessToken() || !this.canReview()) return;
+    if (!this.identity() || !this.canReview()) return;
     this.api.reviewTasks(this.accessToken()).subscribe({
       next: (tasks) => {
         this.reviewTasks.set(tasks);
@@ -307,6 +360,26 @@ export class AppComponent implements OnDestroy {
   private clearMessages(): void {
     this.error.set(null);
     this.notice.set(null);
+  }
+
+  private establishIdentity(identity: SessionIdentity): void {
+    this.identity.set(identity);
+    this.busy.set(false);
+    this.notice.set(`Connected as ${identity.role.replaceAll('_', ' ').toLowerCase()}.`);
+    this.refreshDocuments();
+    if (this.canReview()) this.refreshReviewQueue();
+  }
+
+  private clearIdentity(): void {
+    this.identity.set(null);
+    this.usingDemoSession.set(false);
+    this.accessToken.set('');
+    this.documents.set([]);
+    this.reviewTasks.set([]);
+    this.selectedDetail.set(null);
+    this.selectedTask.set(null);
+    this.busy.set(false);
+    this.clearMessages();
   }
 
   private displayValue(value: unknown, empty: string): string {

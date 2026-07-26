@@ -14,6 +14,12 @@ one-shot completion dependencies; FastAPI and Streamlit expose readiness endpoin
 mock Zapier are HTTP-probed; orchestrator/integration containers verify live database access. No
 service readiness uses a fixed sleep.
 
+The local profile binds HTTP ports to `127.0.0.1` and enables development role sessions. Select a
+role in Angular or Streamlit; no token copy/paste is required. Sessions are process-local, expire
+after the configured TTL, and are intentionally cleared by a FastAPI restart. Bearer tokens remain
+available for CLI diagnostics. Production must set `INTAKE_DEMO_ROLE_LOGIN_ENABLED=false` and use
+the deployment identity provider.
+
 ## Common incidents
 
 | Signal | Action |
@@ -24,6 +30,7 @@ service readiness uses a fixed sleep.
 | Provider unavailable/malformed | Case should be `AGENT_INCOMPLETE` in review; verify provider config without exposing credentials |
 | Outbox retry/dead letter | Check server-side hook/auth, delivery ledger status, then replay as operations admin |
 | Callback rejected | Verify callback token plus event ID/idempotency key; never log supplied token |
+| Demo session lost | Reconnect the role; API restart and TTL expiry intentionally revoke it |
 
 ## Dead-letter replay
 

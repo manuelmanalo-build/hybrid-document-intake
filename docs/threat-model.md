@@ -22,15 +22,18 @@ and integration-worker/Zapier interfaces.
 | Webhook spoof/replay | Optional bearer/HMAC delivery auth, authenticated idempotent callback, bounded response metadata |
 | Dependency/secret compromise | Frozen locks, pinned images, GitHub dependency audit and Gitleaks jobs, non-root custom Python containers |
 | Denial of service | Upload/context/evidence bounds, model/tool/agent timeouts, bounded attempts, database leases |
+| Demo credential exposure | Configured tokens remain server-side; opaque HttpOnly role sessions; production rejection; loopback-only local ports |
 
 ## Residual risks
 
-Local demo bearer tokens are not production identity and must be replaced with OIDC/JWT. Local
-storage is not encrypted by this repository. PostgreSQL row-level security and distinct database
-roles are recommended deployment hardening. Zapier remains an at-least-once external system and
-must honor idempotency before downstream side effects. PDF malware scanning and production object
-storage are outside the first slice. The web/database images retain their pinned upstream runtime
-user behavior and should be constrained by the production container platform.
+Local demo bearer tokens and role sessions are not production identity and must be replaced with
+OIDC/JWT. Anyone with access to the loopback demo UI can select a demo role; sessions are
+process-local and cleared on restart. Local storage is not encrypted by this repository. PostgreSQL
+row-level security and distinct database roles are recommended deployment hardening. Zapier remains
+an at-least-once external system and must honor idempotency before downstream side effects. PDF
+malware scanning and production object storage are outside the first slice. The web/database images
+retain their pinned upstream runtime user behavior and should be constrained by the production
+container platform.
 
 ## Security verification
 

@@ -40,8 +40,10 @@ See [the implementation checklist](docs/implementation-checklist.md),
 - Docker Engine with Docker Compose v2
 
 Copy `.env.example` to `.env` and replace placeholder credentials before starting containers. The
-default `AGENT_PROVIDER=stub` needs no live model. Set `AGENT_MODEL` and the corresponding provider
-key to exercise OpenAI or Gemini. LangSmith remains disabled and optional.
+local Compose profile enables one-click role sessions, so UI users do not copy demo bearer tokens;
+the tokens remain available for CLI examples. The default `AGENT_PROVIDER=stub` needs no live
+model. Set `AGENT_MODEL` and the corresponding provider key to exercise OpenAI or Gemini. LangSmith
+remains disabled and optional.
 
 ## Quality commands
 
@@ -91,9 +93,10 @@ business-data version, appends audit records, and inserts one durable `graph_res
 same transaction. The API never resumes LangGraph directly; the orchestrator leases and resumes the
 persisted thread.
 
-Open Angular at `http://localhost:4200`, enter the configured submitter/reviewer/approver token, and
-use the intake, document, or review navigation. The PDF is fetched as an authenticated FastAPI blob;
-the browser never receives its storage path. All first-slice cases stop for human review.
+Open Angular at `http://localhost:4200`, select Submitter, Reviewer, or Approver from the local demo
+role control, and connect. FastAPI sets an opaque HttpOnly session cookie; Angular never receives a
+configured token. The PDF is fetched as an authenticated FastAPI blob, and the browser never
+receives its storage path. All first-slice cases stop for human review.
 
 ## Zapier delivery and replay
 
@@ -120,11 +123,17 @@ curl --fail-with-body -X POST \
 
 ## Current local stack
 
-`docker compose --profile local` starts PostgreSQL, migration/bootstrap jobs, FastAPI, the LangGraph orchestrator,
-the Zapier integration worker, Angular, and Streamlit. The orchestrator initializes checkpoint
-schema, leases graph run/resume requests, uses the persisted `thread_id`, and treats a durable review
-interrupt as the successful initial dispatch outcome. Streamlit is at `http://localhost:8501`; enter
-an operations-admin or auditor token in its sidebar. No UI connects to PostgreSQL or LangGraph.
+`docker compose --profile local` starts PostgreSQL, migration/bootstrap jobs, FastAPI, the LangGraph
+orchestrator, the Zapier integration worker, Angular, and Streamlit. The orchestrator initializes
+checkpoint schema, leases graph run/resume requests, uses the persisted `thread_id`, and treats a
+durable review interrupt as the successful initial dispatch outcome. Streamlit is at
+`http://localhost:8501`; select Operations Admin or Auditor in its sidebar. Its FastAPI session
+cookie stays in Streamlit's server-side session. No UI connects to PostgreSQL or LangGraph.
+
+Demo sessions expire after `INTAKE_DEMO_SESSION_TTL_SECONDS` and are cleared by an API restart.
+Bearer-token authentication remains available for `curl` and automation. Set
+`INTAKE_DEMO_ROLE_LOGIN_ENABLED=false` outside the loopback-only local profile; production
+configuration rejects it.
 
 The local profile also starts mock Zapier on `http://localhost:8090`. All services have active
 health checks and depend on readiness or successful one-shot migrations rather than fixed sleeps.

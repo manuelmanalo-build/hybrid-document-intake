@@ -1,20 +1,21 @@
 from pathlib import Path
 
-PDF_BYTES = (
-    b"%PDF-1.4\n"
-    b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-    b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] "
-    b"/Contents 4 0 R >>\nendobj\n"
-    b"4 0 obj\n<< /Length 44 >>\nstream\n"
-    b"BT /F1 12 Tf 20 100 Td (Synthetic invoice) Tj ET\n"
-    b"endstream\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
-)
+from pdf_fixture_writer import build_text_pdf
 
 
 def main() -> None:
     target = Path(__file__).resolve().parents[1] / "test-data" / "minimal.pdf"
-    target.write_bytes(PDF_BYTES)
+    target.write_bytes(
+        build_text_pdf(
+            [
+                "SYNTHETIC TEST FIXTURE - AP INVOICE",
+                "Invoice number: MINIMAL-001",
+                "Supplier: Synthetic Example Supplier",
+                "Currency: USD",
+                "Total: 1.00",
+            ]
+        )
+    )
 
 
 if __name__ == "__main__":

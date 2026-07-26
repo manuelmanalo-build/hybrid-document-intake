@@ -5,11 +5,13 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from intake_api.api.correlation import CorrelationIdMiddleware
+from intake_api.api.demo_auth import router as demo_auth_router
 from intake_api.api.documents import router as documents_router
 from intake_api.api.integrations import router as integrations_router
 from intake_api.api.problem_handlers import install_problem_handlers
 from intake_api.api.query import router as query_router
 from intake_api.api.review_tasks import router as review_tasks_router
+from intake_api.application.demo_sessions import DemoSessionStore
 from intake_api.application.intake import build_intake_service
 from intake_api.application.integrations import IntegrationAdminService
 from intake_api.application.query import QueryService
@@ -37,6 +39,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = active_settings
+    app.state.demo_session_store = (
+        DemoSessionStore(
+            active_settings.demo_session_ttl_seconds,
+            active_settings.demo_session_max_active,
+        )
+        if active_settings.demo_role_login_enabled
+        else None
+    )
     app.state.engine = engine
     app.state.session_factory = session_factory
     app.state.intake_service = build_intake_service(active_settings, session_factory)
@@ -49,6 +59,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(review_tasks_router)
     app.include_router(integrations_router)
     app.include_router(query_router)
+    if active_settings.demo_role_login_enabled:
+        app.include_router(demo_auth_router)
 
     @app.get("/health/live", tags=["health"])
     def live() -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]

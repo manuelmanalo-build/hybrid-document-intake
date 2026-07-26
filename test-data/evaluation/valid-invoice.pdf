@@ -1,4 +1,5 @@
 %PDF-1.4
+%‚„œ”
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
 endobj
@@ -6,14 +7,60 @@ endobj
 << /Type /Pages /Kids [3 0 R] /Count 1 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
 endobj
 4 0 obj
-<< /Length 280 >>
+<< /Length 489 >>
 stream
-BT /F1 10 Tf 20 110 Td (SYNTHETIC valid-invoice invoice_number: INV-1001 invoice_date: 2026-07-01 due_date: 2026-07-31 supplier_name: Synthetic Office Supply supplier_tax_id: TAX-DEMO-001 purchase_order_number: PO-1001 currency: USD subtotal: 100.00 tax: 8.00 total: 108.00) Tj ET
+BT
+/F1 16 Tf
+72 728 Td
+20 TL
+(SYNTHETIC TEST FIXTURE - AP INVOICE) Tj
+T*
+/F1 10 Tf
+16 TL
+(Scenario: valid-invoice) Tj
+T*
+(All names, identifiers, dates, and amounts are fictional.) Tj
+T*
+() Tj
+T*
+(Invoice number: INV-1001) Tj
+T*
+(Invoice date: 2026-07-01) Tj
+T*
+(Due date: 2026-07-31) Tj
+T*
+(Supplier: Synthetic Office Supply) Tj
+T*
+(Supplier tax ID: TAX-DEMO-001) Tj
+T*
+(Purchase order: PO-1001) Tj
+T*
+(Currency: USD) Tj
+T*
+(Subtotal: 100.00) Tj
+T*
+(Tax: 8.00) Tj
+T*
+(Total: 108.00) Tj
+ET
 endstream
 endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f
+0000000015 00000 n
+0000000064 00000 n
+0000000121 00000 n
+0000000247 00000 n
+0000000787 00000 n
 trailer
-<< /Root 1 0 R >>
+<< /Size 6 /Root 1 0 R >>
+startxref
+857
 %%EOF

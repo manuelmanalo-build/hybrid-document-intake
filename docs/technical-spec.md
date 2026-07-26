@@ -83,3 +83,8 @@ when the receiver honors the supplied idempotency key.
 Graph, policy, prompt, extraction schema, rules, confidence, event payload, and recommendation formats
 are versioned. Provider and model are server configuration. Production uses PostgreSQL checkpoints;
 `InMemorySaver` is limited to narrow graph unit tests. All images and package versions are pinned.
+
+Local UI authentication uses an opaque, expiring, process-local FastAPI session cookie. Angular
+uses it through the same-origin API proxy; Streamlit holds it only in a server-side HTTP client.
+The router is configuration-gated, production validation rejects it, and local Compose ports bind
+to loopback. Bearer authentication remains available for non-browser clients.

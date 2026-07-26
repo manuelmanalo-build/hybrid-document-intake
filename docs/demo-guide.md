@@ -2,7 +2,8 @@
 
 ## Preparation
 
-1. Copy `.env.example` to `.env` and replace all demo tokens/passwords.
+1. Copy `.env.example` to `.env` and replace all demo tokens/passwords. Leave
+   `INTAKE_DEMO_ROLE_LOGIN_ENABLED=true` for one-click local role selection.
 2. Leave `AGENT_PROVIDER=stub`, `LANGSMITH_TRACING=false`, and
    `EVALUATION_LANGSMITH_ENABLED=false` for a deterministic offline demo.
 3. Run `docker compose --profile local --env-file .env up --build --wait`.
@@ -11,14 +12,14 @@
 
 ## Story
 
-1. In Angular, connect with the submitter token and upload
+1. In Angular, select the Submitter role, connect, and upload
    `test-data/evaluation/valid-invoice.pdf`. Point out upload progress and retained idempotency key.
 2. Show document stage and that the protected PDF arrives through FastAPI, not a storage path.
-3. In Streamlit with an auditor token, show graph/agent/tool activity, extraction quality, rules,
+3. In Streamlit, select Auditor and show graph/agent/tool activity, extraction quality, rules,
    confidence, and the interrupted count.
-4. In Angular with a reviewer token, claim the task, inspect bounded evidence, correct one field with
+4. In Angular, switch to Reviewer, claim the task, inspect bounded evidence, correct one field with
    a reason, and request correction if demonstrating the loop.
-5. With an approver token, claim the refreshed/open task and approve. Emphasize that the agent
+5. Switch to Approver, claim the refreshed/open task, and approve. Emphasize that the agent
    recommendation is labeled advisory and cannot expose an approve action.
 6. Show the completed graph, approved record/outbox delivery, and mock Zapier `/deliveries` count.
    Re-sending the same idempotency key returns `duplicate: true` without a second business effect.
