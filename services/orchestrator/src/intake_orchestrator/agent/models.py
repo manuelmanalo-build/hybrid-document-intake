@@ -111,6 +111,11 @@ class StubChatModel(BaseChatModel):
         return name, _stub_arguments(name, state)
 
 
+# Anthropic requires an explicit output budget; a full claim candidate with per-field evidence
+# needs more than the client default.
+ANTHROPIC_MAX_OUTPUT_TOKENS = 4096
+
+
 def create_chat_model(settings: Settings) -> BaseChatModel:
     if settings.agent_provider == "stub":
         return StubChatModel(model_name=settings.agent_model)
@@ -131,6 +136,19 @@ def create_chat_model(settings: Settings) -> BaseChatModel:
             google_api_key=settings.google_api_key,
             timeout=settings.agent_model_timeout_seconds,
             max_retries=0,
+        )
+    if settings.agent_provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+
+        if settings.anthropic_api_key is None:
+            raise ValueError("ANTHROPIC_API_KEY is required when AGENT_PROVIDER=anthropic")
+        return ChatAnthropic(
+            model_name=settings.agent_model,
+            api_key=settings.anthropic_api_key,
+            max_tokens_to_sample=ANTHROPIC_MAX_OUTPUT_TOKENS,
+            timeout=settings.agent_model_timeout_seconds,
+            max_retries=0,
+            stop=None,
         )
     raise ValueError("Unsupported configured agent provider")
 

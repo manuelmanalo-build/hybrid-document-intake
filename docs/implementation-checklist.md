@@ -46,7 +46,7 @@ implementations.
 
 ## Agent subgraph
 
-- [x] Implement provider-neutral model port, OpenAI and Gemini adapters, and deterministic stub.
+- [x] Implement provider-neutral model port, OpenAI, Gemini, and Anthropic adapters, and deterministic stub.
 - [x] Implement recommendation/AP extraction Pydantic contracts using `Decimal`.
 - [x] Implement immutable nine-tool registry and policy guard.
 - [x] Enforce 10 total, 3 extraction, 2 supplier, 2 PO, serial execution, and configured timeouts.

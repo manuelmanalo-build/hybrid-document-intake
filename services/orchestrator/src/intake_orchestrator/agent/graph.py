@@ -489,6 +489,6 @@ def _raise_mapped_provider_error(error: Exception) -> NoReturn:
         raise TransientProviderRateLimit("Model provider rate limit") from error
     if "timeout" in name or "deadlineexceeded" in name:
         raise TransientProviderTimeout("Model provider timeout") from error
-    if "apiconnection" in name or "serviceunavailable" in name:
+    if "apiconnection" in name or "serviceunavailable" in name or "overloaded" in name:
         raise ProviderUnavailable("Model provider unavailable") from error
     raise error

@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     graph_request_poll_seconds: float = Field(default=2.0, gt=0, le=60)
     graph_request_backoff_base_seconds: PositiveInt = 2
     graph_request_backoff_max_seconds: PositiveInt = 60
-    agent_provider: Literal["stub", "openai", "gemini"] = Field(
+    agent_provider: Literal["stub", "openai", "gemini", "anthropic"] = Field(
         default="stub", validation_alias=AliasChoices("AGENT_PROVIDER", "INTAKE_AGENT_PROVIDER")
     )
     agent_model: str = Field(
@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     )
     google_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("GOOGLE_API_KEY", "INTAKE_GOOGLE_API_KEY")
+    )
+    anthropic_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ANTHROPIC_API_KEY", "INTAKE_ANTHROPIC_API_KEY"),
     )
     agent_max_tool_calls: PositiveInt = Field(
         default=10,
@@ -113,6 +117,8 @@ class Settings(BaseSettings):
             raise ValueError("OPENAI_API_KEY is required when AGENT_PROVIDER=openai")
         if self.agent_provider == "gemini" and self.google_api_key is None:
             raise ValueError("GOOGLE_API_KEY is required when AGENT_PROVIDER=gemini")
+        if self.agent_provider == "anthropic" and self.anthropic_api_key is None:
+            raise ValueError("ANTHROPIC_API_KEY is required when AGENT_PROVIDER=anthropic")
         if self.agent_provider != "stub" and self.agent_model == "deterministic-stub-v1":
             raise ValueError("AGENT_MODEL must be explicitly configured for a live provider")
         return self
