@@ -127,3 +127,20 @@ git-ignored). Per-case failures are recorded by error type, counted, and make th
 non-zero. The diagnostic is never part of ordinary CI; its first live result becomes the versioned
 quality baseline referred to under release gates.
 
+### Live claims diagnostic
+
+`evaluation.live_claims_extraction` runs the claim segmenter and extractor over the 20 packets in
+`test-data/claims` and scores them against `ground_truth.csv`. It reports page-segment accuracy,
+per-field accuracy, and field accuracy split between digital and scanned packets. It defaults to the
+`VISUAL` strategy so the two image-only scans are readable, uses the same
+`EVALUATION_LIVE_ENABLED=true` cost gate, labels stub runs `STUB_NOT_A_MEASUREMENT`, and writes
+`evaluation-live-claims-report.json` (git-ignored).
+
+```bash
+PYTHONPATH=.:services/api/src:services/orchestrator/src \
+AGENT_PROVIDER=openai AGENT_MODEL=<model> OPENAI_API_KEY=<key> \
+EVALUATION_LIVE_ENABLED=true uv run python -m evaluation.live_claims_extraction
+```
+
+A live run makes two model calls per packet (40 total).
+

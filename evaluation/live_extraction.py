@@ -14,18 +14,20 @@ import re
 import sys
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict
 
 from evaluation.harness import EvaluationCase, load_cases
 from intake_api.infrastructure.config import Settings
-from intake_orchestrator.agent.contracts import APInvoiceCandidate, ExtractedField
+from intake_orchestrator.agent.contracts import ExtractedField
 from intake_orchestrator.agent.extraction import (
     EXTRACTION_SCHEMA_VERSION,
+    BoundedExtractionContent,
     LangChainStructuredInvoiceExtractor,
     StructuredInvoiceExtractor,
     StubStructuredInvoiceExtractor,
@@ -89,14 +91,12 @@ def normalize_value(value: object) -> str:
     return text.casefold()
 
 
-def score_candidate(
-    candidate: APInvoiceCandidate, expected_fields: dict[str, object]
-) -> list[FieldResult]:
+def score_candidate(candidate: BaseModel, expected_fields: dict[str, object]) -> list[FieldResult]:
     results: list[FieldResult] = []
     for name, expected_value in sorted(expected_fields.items()):
         observed_value = (
             cast(ExtractedField[object], getattr(candidate, name)).value
-            if name in APInvoiceCandidate.model_fields
+            if name in type(candidate).model_fields
             else None
         )
         expected_text = normalize_value(expected_value)
@@ -112,27 +112,33 @@ def score_candidate(
     return results
 
 
-async def run_live_extraction(
-    cases: list[EvaluationCase],
+@dataclass(frozen=True, slots=True)
+class FixtureCase:
+    case_id: str
+    fixture: str
+    path: Path
+    expected_fields: dict[str, object]
+
+
+class CandidateExtractor(Protocol):
+    async def extract(
+        self, *, strategy: Strategy, bounded_content: BoundedExtractionContent
+    ) -> BaseModel: ...
+
+
+async def run_fixture_cases(
+    cases: list[FixtureCase],
     *,
-    fixture_root: Path,
-    extractor: StructuredInvoiceExtractor,
+    extractor: CandidateExtractor,
     strategy: Strategy,
-    provider: str,
-    model: str,
     timeout_seconds: float,
     clock: Callable[[], float] = time.perf_counter,
-) -> LiveExtractionReport:
-    invoice_cases = [case for case in cases if case.expected.classification == "AP_INVOICE"]
-    if not invoice_cases:
-        raise ValueError("At least one AP_INVOICE evaluation case is required")
+) -> list[CaseResult]:
     results: list[CaseResult] = []
-    for case in invoice_cases:
+    for case in cases:
         started = clock()
         try:
-            content = read_bounded_pdf_content(
-                fixture_root / case.fixture, include_images=strategy == "VISUAL"
-            )
+            content = read_bounded_pdf_content(case.path, include_images=strategy == "VISUAL")
             async with asyncio.timeout(timeout_seconds):
                 candidate = await extractor.extract(strategy=strategy, bounded_content=content)
         # A diagnostic run records every per-case failure by type and keeps going; the error is
@@ -155,10 +161,49 @@ async def run_live_extraction(
                 fixture=case.fixture,
                 status="SCORED",
                 latency_ms=_elapsed_ms(started, clock),
-                fields=score_candidate(candidate, case.expected.fields),
+                fields=score_candidate(candidate, case.expected_fields),
             )
         )
-    return _report(results, strategy=strategy, provider=provider, model=model)
+    return results
+
+
+async def run_live_extraction(
+    cases: list[EvaluationCase],
+    *,
+    fixture_root: Path,
+    extractor: StructuredInvoiceExtractor,
+    strategy: Strategy,
+    provider: str,
+    model: str,
+    timeout_seconds: float,
+    clock: Callable[[], float] = time.perf_counter,
+) -> LiveExtractionReport:
+    invoice_cases = [case for case in cases if case.expected.classification == "AP_INVOICE"]
+    if not invoice_cases:
+        raise ValueError("At least one AP_INVOICE evaluation case is required")
+    results = await run_fixture_cases(
+        [
+            FixtureCase(
+                case_id=case.case_id,
+                fixture=case.fixture,
+                path=fixture_root / case.fixture,
+                expected_fields=dict(case.expected.fields),
+            )
+            for case in invoice_cases
+        ],
+        extractor=extractor,
+        strategy=strategy,
+        timeout_seconds=timeout_seconds,
+        clock=clock,
+    )
+    return build_report(
+        results,
+        strategy=strategy,
+        provider=provider,
+        model=model,
+        prompt_version=PROMPT_VERSION,
+        schema_version=EXTRACTION_SCHEMA_VERSION,
+    )
 
 
 def build_extractor(settings: Settings) -> StructuredInvoiceExtractor:
@@ -210,8 +255,14 @@ def main() -> None:
         raise SystemExit(1)
 
 
-def _report(
-    results: list[CaseResult], *, strategy: Strategy, provider: str, model: str
+def build_report(
+    results: list[CaseResult],
+    *,
+    strategy: Strategy,
+    provider: str,
+    model: str,
+    prompt_version: str,
+    schema_version: str,
 ) -> LiveExtractionReport:
     scored = [result for result in results if result.status == "SCORED"]
     matches = sum(field.match for result in scored for field in result.fields)
@@ -226,8 +277,8 @@ def _report(
         provider=provider,
         model=model,
         strategy=strategy,
-        prompt_version=PROMPT_VERSION,
-        schema_version=EXTRACTION_SCHEMA_VERSION,
+        prompt_version=prompt_version,
+        schema_version=schema_version,
         case_count=len(results),
         scored_count=len(scored),
         error_count=len(results) - len(scored),
@@ -235,7 +286,7 @@ def _report(
         per_field_accuracy={
             name: _ratio(sum(values), len(values)) for name, values in sorted(per_field.items())
         },
-        mean_latency_ms=sum(latencies) // len(latencies),
+        mean_latency_ms=sum(latencies) // len(latencies) if latencies else 0,
         cases=results,
     )
 
