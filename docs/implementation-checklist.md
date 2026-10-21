@@ -106,7 +106,11 @@ implementations.
   fixture-integrity test.
 - [x] Add policy, policy-vehicle, page-segment, duplicate-key, and routing-decision tables
   (migration 0005), an audited idempotent reference-data loader, and a local Compose load job.
-- [ ] Add `CLAIM_PACKET` classification, segment and claim-candidate contracts, and stub extractors.
+- [x] Add segment, claim-candidate, and claim tool contracts (`claim-packet-v1`), separately
+  versioned claim prompts, stub and LangChain claim extractors/segmenters, and an opt-in live
+  claims diagnostic scored against ground truth.
+- [ ] Add `CLAIM_PACKET` to the classification set together with the claim tool registry (enabling
+  the classification before claim tools exist would only produce incomplete claim runs).
 - [ ] Register and guard the five claim tools with document-type scoping and limits.
 - [ ] Implement versioned CR-001 through CR-014 and claim decision confidence.
 - [ ] Implement `claim-routing-v1` queue assignment on review tasks.

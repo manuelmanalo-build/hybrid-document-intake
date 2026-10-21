@@ -17,3 +17,4 @@ storage/
 .DS_Store
 *.log
 evaluation-live-report.json
+evaluation-live-claims-report.json

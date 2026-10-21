@@ -46,6 +46,10 @@ evidence, strategy, provider, model, schema version, and prompt version. Absence
 | `estimate_tax` | Decimal | |
 | `estimate_total` | Decimal | Grand total |
 
+Implemented in `intake_orchestrator.agent.claim_contracts` as schema version `claim-packet-v1`.
+Claim prompts are versioned as `claims-intake-agent-v1` with their own content hash, so the
+recorded identity of the invoice prompt set is unchanged.
+
 ## Deterministic claim rules v1
 
 Each result carries rule ID/version, outcome (`PASS`, `FAIL`, `REVIEW`, `NOT_APPLICABLE`), safe
