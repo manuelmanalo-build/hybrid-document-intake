@@ -29,8 +29,9 @@ and must not let a model approve or deny anything.
 4. Claim business rules CR-001 to CR-014 in `docs/claims-slice-scope.md` are versioned,
    deterministic, and shared by the advisory `validate_candidate` tool and the authoritative
    parent-graph validation, exactly as BR-001 to BR-012 are.
-5. The application computes a **review queue** with the versioned `claim-routing-v1` policy. The
-   queue is an attribute of the application-owned review task. The model cannot select, suggest,
+5. The application computes a **review queue** with the versioned `claim-routing-v1` policy. Each
+   decision is an immutable record tied to one authoritative validation run and read by the
+   application-owned review task. The model cannot select, suggest,
    or change it. The recommendation contract is unchanged, and `AUTO_APPROVE` remains invalid.
 6. **Every claim still reaches human review.** `FAST_TRACK` is a priority queue with a short
    review form, not a touchless path. Measured "touchless rate" is replaced by fast-track queue
