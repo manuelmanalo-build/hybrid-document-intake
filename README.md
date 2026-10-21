@@ -65,6 +65,9 @@ docker compose --profile local --env-file .env up --build --wait
 uv run python -m evaluation.run
 ```
 
+`evaluation.run` scores recorded observations. To measure a real model, use the opt-in live
+extraction diagnostic described in [the evaluation plan](docs/agent-evaluation-plan.md#live-extraction-diagnostic).
+
 PostgreSQL integration tests require `TEST_DATABASE_URL` for a disposable database whose name
 contains `test`; they apply and roll back Alembic migrations.
 

@@ -3,7 +3,8 @@
 ## Purpose and precedence
 
 This repository demonstrates enterprise document intake with a deterministic LangGraph parent
-graph and a bounded LangChain agent subgraph. The deterministic application boundary is always
+graph and a bounded LangChain agent subgraph. Supported document types are AP invoices and, per
+[ADR 0008](docs/adr/0008-claim-packet-document-type.md), personal-auto claim packets. The deterministic application boundary is always
 authoritative. The model proposes tool calls and a recommendation; it never approves, rejects, or
 performs an external side effect.
 
@@ -52,6 +53,18 @@ The Document Intake Resolution Agent is advisory. It may select only these regis
 - `retry_extraction`
 - `submit_recommendation`
 
+ADR 0008 adds claim-packet tools, introduced one increment at a time. A listed tool is executable
+only after it is registered, guarded, and tested; until then it does not exist:
+
+- `segment_claim_packet`
+- `extract_claim_from_text`
+- `extract_claim_from_visual_content`
+- `lookup_policy`
+- `lookup_policy_vehicle`
+
+Invoice-specific tools require an `AP_INVOICE` classification and claim-specific tools require a
+`CLAIM_PACKET` classification. The policy guard enforces this, not the prompt.
+
 A custom policy guard must validate the requested tool name, Pydantic arguments, tenant/document
 scope, caller capability, prerequisite state, counters, timeout, and idempotency key before every
 execution. A model-generated function or node name is data, never executable authority. Tools
@@ -88,7 +101,8 @@ The recommendation contract allows only `HUMAN_REVIEW`, `REQUEST_INFORMATION`, a
   large extraction payloads do not belong in state or checkpoints.
 - Detailed extraction, validation, confidence, review, audit, and delivery data belongs in
   application tables. Checkpoints and traces are not the authoritative business audit log.
-- AP invoice money uses `Decimal`, never binary floating point.
+- All money (invoice amounts, claim estimates, deductibles, vehicle values) uses `Decimal`, never
+  binary floating point.
 - Originals are immutable. Reads are bounded and storage access occurs through a port using opaque,
   non-guessable object keys.
 - Side effects are transactional or idempotent. Nodes may replay after failure or interrupt.
@@ -98,7 +112,12 @@ The recommendation contract allows only `HUMAN_REVIEW`, `REQUEST_INFORMATION`, a
 `validate_candidate` calls the same deterministic rule service used later by the parent graph, but
 its result is advisory. The parent independently runs schema and business validation after the
 agent and again after corrections. Implement BR-001 through BR-012 from
-`docs/first-slice-scope.md` with versioned rule results.
+`docs/first-slice-scope.md` and CR-001 through CR-014 from `docs/claims-slice-scope.md` with
+versioned rule results.
+
+The claim review queue is computed by the application with the versioned `claim-routing-v1`
+policy. The model never selects, suggests, or changes a queue, and `FAST_TRACK` is a review
+priority, not an approval.
 
 The application calculates the versioned decision-confidence score. Provider confidence is an
 input only. Keep classification, completeness, evidence coverage, supplier match, purchase-order

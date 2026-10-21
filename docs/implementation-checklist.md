@@ -95,3 +95,21 @@ implementations.
 - [ ] Run Ruff, strict Pyright, Pytest unit/PostgreSQL integration, Angular format/lint/test/build,
   migrations, Docker builds, and Compose validation in CI.
 - [x] Document local end-to-end demo, backup/restore, dead-letter replay, audit, threat, and retention runbooks.
+
+## Claims slice (ADR 0008)
+
+- [x] Record the claim-packet decision, claims scope, CR-001 through CR-014, and
+  `claim-routing-v1` queue policy; amend the constitution and first-slice scope.
+- [x] Add a live, opt-in extraction evaluation runner that measures real provider output against
+  fixtures (diagnostic only; never required by ordinary CI).
+- [x] Add the synthetic claims evaluation set with policy, vehicle, and ground-truth files and a
+  fixture-integrity test.
+- [ ] Add policy and policy-vehicle reference tables, claim candidate tables, and migrations.
+- [ ] Add `CLAIM_PACKET` classification, segment and claim-candidate contracts, and stub extractors.
+- [ ] Register and guard the five claim tools with document-type scoping and limits.
+- [ ] Implement versioned CR-001 through CR-014 and claim decision confidence.
+- [ ] Implement `claim-routing-v1` queue assignment on review tasks.
+- [ ] Add the Angular claim review form and queue filters.
+- [ ] Score claims against ground truth with the zero-false-fast-track gate in CI.
+- [ ] Port the claims fixture generator into `scripts/` under Ruff rules.
+

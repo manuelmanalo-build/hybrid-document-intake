@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import time
-from base64 import b64encode
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -10,7 +9,6 @@ from typing import Literal, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel
-from pypdf import PdfReader
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -50,6 +48,7 @@ from intake_orchestrator.agent.extraction import (
     candidate_business_data,
     candidate_completeness,
 )
+from intake_orchestrator.agent.pdf_content import read_bounded_pdf_content
 from intake_orchestrator.agent.prompts import PROMPT_CONTENT_SHA256
 from intake_orchestrator.agent.tools import validate_tool_output
 from intake_orchestrator.validation import (
@@ -811,32 +810,7 @@ class PostgresAgentBackend:
             return BoundedExtractionContent(
                 text="Deterministic stub extraction input; bytes remain out of graph state."
             )
-        excerpts: list[str] = []
-        image_data_urls: list[str] = []
-        image_bytes = 0
-        with path.open("rb") as stream:
-            reader = PdfReader(stream, strict=True)
-            for page_number, page in enumerate(reader.pages[:20], start=1):
-                remaining = 20_000 - sum(len(value) for value in excerpts)
-                if remaining <= 0:
-                    break
-                text = (page.extract_text() or "")[:remaining]
-                excerpts.append(f"[page {page_number}]\n{text}")
-                if include_images:
-                    for image in page.images:
-                        if len(image_data_urls) >= 10 or image_bytes + len(image.data) > 4_000_000:
-                            break
-                        extension = image.name.rsplit(".", 1)[-1].casefold()
-                        if extension not in {"jpg", "jpeg", "png"}:
-                            continue
-                        media_type = "image/jpeg" if extension in {"jpg", "jpeg"} else "image/png"
-                        image_data_urls.append(
-                            f"data:{media_type};base64,{b64encode(image.data).decode('ascii')}"
-                        )
-                        image_bytes += len(image.data)
-        return BoundedExtractionContent(
-            text="\n".join(excerpts)[:20_000], image_data_urls=tuple(image_data_urls)
-        )
+        return read_bounded_pdf_content(path, include_images=include_images)
 
 
 async def _graph_identity(

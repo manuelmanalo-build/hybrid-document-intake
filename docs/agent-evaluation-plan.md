@@ -104,3 +104,26 @@ The local evaluator has no network requirement. `EVALUATION_LANGSMITH_ENABLED=tr
 exports sanitized case inputs and observations when `LANGSMITH_API_KEY` and
 `EVALUATION_LANGSMITH_DATASET` are explicitly set. `LANGSMITH_TRACING` separately controls normal
 LangChain tracing. Both default false, and missing LangSmith never affects ordinary tests.
+
+## Live extraction diagnostic
+
+`evaluation.run` scores recorded observations; it does not call a model. To measure a real
+provider, run the opt-in live extraction diagnostic. It reads each `AP_INVOICE` fixture with the
+same bounded PDF reader the graph backend uses, calls the production structured extractor, and
+scores every field against `expected.fields` after normalizing numbers, dates, case, and
+whitespace.
+
+```bash
+PYTHONPATH=.:services/api/src:services/orchestrator/src \
+AGENT_PROVIDER=openai AGENT_MODEL=<model> OPENAI_API_KEY=<key> \
+EVALUATION_LIVE_ENABLED=true EVALUATION_LIVE_STRATEGY=TEXT \
+uv run python -m evaluation.live_extraction
+```
+
+A live provider refuses to run without `EVALUATION_LIVE_ENABLED=true` (explicit cost approval).
+With the default stub provider the report is labeled `STUB_NOT_A_MEASUREMENT`. The full per-case,
+per-field report is written to `EVALUATION_LIVE_REPORT` (default `evaluation-live-report.json`,
+git-ignored). Per-case failures are recorded by error type, counted, and make the command exit
+non-zero. The diagnostic is never part of ordinary CI; its first live result becomes the versioned
+quality baseline referred to under release gates.
+

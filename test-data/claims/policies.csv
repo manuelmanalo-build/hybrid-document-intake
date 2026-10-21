@@ -1,0 +1,23 @@
+policy_number,named_insured,mailing_address,phone,effective_date,expiration_date,status,cancellation_date,collision_deductible,comprehensive_deductible,liability_limits
+NFM-PA-4471200,Marisol Vega,"418 Larkspur Ln, Dublin, OH 43017",614-555-0142,2026-05-01,2026-11-01,active,,500,250,100/300/100
+NFM-PA-4471337,Trevor Haines,"92 Coldwater Rd, Westerville, OH 43081",614-555-0187,2026-04-15,2026-10-15,active,,500,500,250/500/100
+NFM-PA-4471474,Priya Raman,"1550 Arbor Glen Dr, Hilliard, OH 43026",614-555-0119,2026-06-01,2026-12-01,active,,1000,500,100/300/100
+NFM-PA-4471611,Gordon Ashby,"77 Mill Pond Ct, Gahanna, OH 43230",614-555-0163,2026-03-20,2026-09-20,active,,1000,500,50/100/50
+NFM-PA-4471748,Lena Fischer,"3021 Ridgeview Ave, Grove City, OH 43123",614-555-0105,2026-07-01,2027-01-01,active,,500,250,100/300/100
+NFM-PA-4471885,Carlos Ibarra,"640 Fernwood Dr, Reynoldsburg, OH 43068",614-555-0131,2026-08-15,2027-02-15,active,,500,500,100/300/100
+NFM-PA-4472022,Beatrice Lowell,"25 Tanager Way, Worthington, OH 43085",614-555-0177,2026-02-01,2026-08-01,cancelled,2026-07-31,500,250,50/100/50
+NFM-PA-4472159,Samuel Achebe,"1189 Brookshire Blvd, Columbus, OH 43219",614-555-0124,2026-05-10,2026-11-10,active,,500,500,100/300/100
+NFM-PA-4472296,Hannah Kowalski,"58 Quarry Bend, Powell, OH 43065",614-555-0158,2026-06-20,2026-12-20,active,,500,250,250/500/100
+NFM-PA-4472433,Danielle Okafor,"2207 Sunbury Rd, Columbus, OH 43219",614-555-0136,2026-04-01,2026-10-01,active,,500,500,100/300/100
+NFM-PA-4472570,Marcus Delgado,"9 Kingsbridge Pl, Upper Arlington, OH 43221",614-555-0192,2026-07-15,2027-01-15,active,,1000,500,250/500/100
+NFM-PA-4472707,Rhonda Pruitt,"413 Cedar Hollow Ln, Canal Winchester, OH 43110",614-555-0148,2026-03-01,2026-09-01,active,,500,500,50/100/50
+NFM-PA-4472844,Kevin Thornbury,"120 Station St Apt 4B, Columbus, OH 43215",614-555-0113,2026-09-01,2027-03-01,active,,500,500,50/100/50
+NFM-PA-4472981,Abigail Norris,"7780 Hollow Oak Rd, Delaware, OH 43015",740-555-0161,2026-05-25,2026-11-25,active,,500,250,100/300/100
+NFM-PA-4473118,Thomas Reyes,"304 Linden Ave, Bexley, OH 43209",614-555-0109,2026-06-10,2026-12-10,active,,1000,500,100/300/100
+NFM-PA-4473255,Yvonne Mercer,"51 Pheasant Run, Pickerington, OH 43147",614-555-0184,2026-04-05,2026-10-05,active,,500,250,100/300/100
+NFM-PA-4473392,Okonkwo & Ruth Adeyemi,"2650 Willowbrook Ct, Lewis Center, OH 43035",740-555-0127,2026-07-01,2027-01-01,active,,500,500,250/500/100
+NFM-PA-4473529,Jasmine Whitfield,"88 Orchard Crest Dr, New Albany, OH 43054",614-555-0171,2026-05-15,2026-11-15,active,,500,500,100/300/100
+NFM-PA-4473666,Neil Barstow,"1402 Kenmore Ave, Marysville, OH 43040",937-555-0152,2026-06-01,2026-12-01,active,,500,250,100/300/100
+NFM-PA-4473803,Daniel Okafor,"5512 Hamilton Rd, Columbus, OH 43230",614-555-0199,2026-05-01,2026-11-01,active,,500,500,100/300/100
+NFM-PA-4473940,Marisol Vega-Ortiz,"19 Spring Hollow Dr, Lancaster, OH 43130",740-555-0118,2026-06-15,2026-12-15,active,,1000,500,50/100/50
+NFM-PA-4474077,Trevor Haynes,"701 Glenmont Ave, Columbus, OH 43214",614-555-0140,2026-01-10,2026-07-10,expired,,500,500,50/100/50
