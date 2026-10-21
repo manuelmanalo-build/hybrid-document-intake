@@ -104,7 +104,8 @@ implementations.
   fixtures (diagnostic only; never required by ordinary CI).
 - [x] Add the synthetic claims evaluation set with policy, vehicle, and ground-truth files and a
   fixture-integrity test.
-- [ ] Add policy and policy-vehicle reference tables, claim candidate tables, and migrations.
+- [x] Add policy, policy-vehicle, page-segment, duplicate-key, and routing-decision tables
+  (migration 0005), an audited idempotent reference-data loader, and a local Compose load job.
 - [ ] Add `CLAIM_PACKET` classification, segment and claim-candidate contracts, and stub extractors.
 - [ ] Register and guard the five claim tools with document-type scoping and limits.
 - [ ] Implement versioned CR-001 through CR-014 and claim decision confidence.

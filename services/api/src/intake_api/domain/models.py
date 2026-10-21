@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
@@ -9,6 +9,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     ForeignKeyConstraint,
@@ -27,10 +28,14 @@ from sqlalchemy.types import Uuid
 from intake_api.domain.enums import (
     ActorType,
     AuditEventType,
+    ClaimKeyStatus,
+    ClaimSegmentLabel,
     DispatchRequestStatus,
     DocumentStatus,
     GraphRunStatus,
     IdempotencyStatus,
+    PolicyStatus,
+    ReviewQueue,
     UserRole,
 )
 
@@ -982,4 +987,194 @@ class DeadLetterEvent(Base):
     replay_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_replayed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_replayed_by_user_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Policy(Base):
+    """Tenant-scoped personal-auto policy reference data for the claims slice (ADR 0008)."""
+
+    __tablename__ = "policies"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_policies_tenant_id_id"),
+        UniqueConstraint("tenant_id", "policy_number", name="uq_policies_number"),
+        ForeignKeyConstraint(["tenant_id"], ["tenants.id"], name="fk_policies_tenant"),
+        CheckConstraint("expiration_date > effective_date", name="ck_policies_term_order"),
+        CheckConstraint(
+            "(status = 'CANCELLED') = (cancellation_date IS NOT NULL)",
+            name="ck_policies_cancellation_date",
+        ),
+        CheckConstraint(
+            "collision_deductible >= 0 AND comprehensive_deductible >= 0",
+            name="ck_policies_deductibles_non_negative",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    policy_number: Mapped[str] = mapped_column(String(40), nullable=False)
+    named_insured: Mapped[str] = mapped_column(String(200), nullable=False)
+    effective_date: Mapped[date] = mapped_column(Date, nullable=False)
+    expiration_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[PolicyStatus] = mapped_column(
+        enum_type(PolicyStatus, "policy_status", 16), nullable=False
+    )
+    cancellation_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    collision_deductible: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    comprehensive_deductible: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    liability_limits: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class PolicyVehicle(Base):
+    __tablename__ = "policy_vehicles"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_policy_vehicles_tenant_id_id"),
+        UniqueConstraint("tenant_id", "policy_id", "vin", name="uq_policy_vehicles_vin"),
+        UniqueConstraint("tenant_id", "policy_id", "vehicle_seq", name="uq_policy_vehicles_seq"),
+        ForeignKeyConstraint(
+            ["tenant_id", "policy_id"],
+            ["policies.tenant_id", "policies.id"],
+            name="fk_policy_vehicles_policy",
+        ),
+        CheckConstraint("char_length(vin) = 17", name="ck_policy_vehicles_vin_length"),
+        CheckConstraint("vehicle_seq >= 1", name="ck_policy_vehicles_seq_positive"),
+        CheckConstraint("actual_cash_value > 0", name="ck_policy_vehicles_acv_positive"),
+        Index("ix_policy_vehicles_tenant_vin", "tenant_id", "vin"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    policy_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    vehicle_seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    model_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    make: Mapped[str] = mapped_column(String(64), nullable=False)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    vin: Mapped[str] = mapped_column(String(17), nullable=False)
+    plate: Mapped[str] = mapped_column(String(20), nullable=False)
+    actual_cash_value: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DocumentPageSegment(Base):
+    """Per-page claim-packet segment labels produced by one agent run."""
+
+    __tablename__ = "document_page_segments"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "agent_run_id", "page_number", name="uq_document_page_segment_page"
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "agent_run_id"],
+            ["agent_runs.tenant_id", "agent_runs.id"],
+            name="fk_document_page_segments_agent_run",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_document_page_segments_document",
+        ),
+        CheckConstraint(
+            "page_number BETWEEN 1 AND 20", name="ck_document_page_segments_page_bound"
+        ),
+        CheckConstraint(
+            "confidence >= 0 AND confidence <= 1", name="ck_document_page_segments_confidence"
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    document_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    agent_run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    segment_label: Mapped[ClaimSegmentLabel] = mapped_column(
+        enum_type(ClaimSegmentLabel, "claim_segment_label", 32), nullable=False
+    )
+    confidence: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ClaimIntakeKey(Base):
+    """Deterministic duplicate-detection key for CR-006, one per claim document."""
+
+    __tablename__ = "claim_intake_keys"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "document_id", name="uq_claim_intake_key_document"),
+        ForeignKeyConstraint(
+            ["tenant_id", "document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_claim_intake_keys_document",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "graph_run_id"],
+            ["graph_runs.tenant_id", "graph_runs.id"],
+            name="fk_claim_intake_keys_graph_run",
+        ),
+        Index(
+            "ix_claim_intake_keys_lookup",
+            "tenant_id",
+            "policy_number",
+            "vin",
+            "loss_date",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    document_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    graph_run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    policy_number: Mapped[str] = mapped_column(String(40), nullable=False)
+    vin: Mapped[str] = mapped_column(String(17), nullable=False)
+    loss_date: Mapped[date] = mapped_column(Date, nullable=False)
+    report_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[ClaimKeyStatus] = mapped_column(
+        enum_type(ClaimKeyStatus, "claim_intake_key_status", 16), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ClaimRoutingDecision(Base):
+    """Immutable claim-routing-v1 queue assignment for one authoritative validation run.
+
+    Kept in its own table, one row per validation run, so a revalidation after corrections adds
+    a new decision instead of overwriting history. The review task uses the latest decision.
+    """
+
+    __tablename__ = "claim_routing_decisions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_claim_routing_decisions_tenant_id_id"),
+        UniqueConstraint(
+            "tenant_id", "validation_run_id", name="uq_claim_routing_decision_validation_run"
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "graph_run_id"],
+            ["graph_runs.tenant_id", "graph_runs.id"],
+            name="fk_claim_routing_decisions_graph_run",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "validation_run_id"],
+            ["validation_runs.tenant_id", "validation_runs.id"],
+            name="fk_claim_routing_decisions_validation_run",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_claim_routing_decisions_document",
+        ),
+        Index(
+            "ix_claim_routing_decisions_graph_run_created",
+            "tenant_id",
+            "graph_run_id",
+            "created_at",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    document_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    graph_run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    validation_run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    review_queue: Mapped[ReviewQueue] = mapped_column(
+        enum_type(ReviewQueue, "claim_review_queue", 32), nullable=False
+    )
+    routing_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(100), nullable=False)
+    flags: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

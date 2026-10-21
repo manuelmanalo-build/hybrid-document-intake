@@ -103,6 +103,24 @@ in `FAST_TRACK`.
 | `lookup_policy` | identity; bounded policy number | match flag, policy ID, in-force flag, match quality | Maximum two calls; tenant reference data only |
 | `lookup_policy_vehicle` | identity; policy number; bounded VIN | match flag, vehicle ID, match kind (`EXACT`, `NEAR`, `NONE`) | Maximum two calls; tenant reference data only |
 
+## Persistence (migration `0005_claims_reference_routing`)
+
+| Table | Purpose |
+|---|---|
+| `policies` | Tenant policy reference data: number, named insured, term, status, cancellation date, deductibles, liability limits. Contact details are not stored. |
+| `policy_vehicles` | Vehicles per policy: sequence, year, make, model, VIN, plate, actual cash value. |
+| `document_page_segments` | One segment label and confidence per page per agent run. |
+| `claim_intake_keys` | One duplicate-detection key per claim document (policy number, VIN, loss date, report date, status) for CR-006. |
+| `claim_routing_decisions` | One immutable `claim-routing-v1` queue decision per authoritative validation run, with reason code and flags. Revalidation adds a row; the review task uses the latest. |
+
+Extraction candidates and field evidence reuse the existing document-type-agnostic tables.
+
+Reference data is loaded with `python -m intake_api.load_claims_reference [directory]`, which
+validates every row before writing, upserts by business key, never deletes, and appends one
+`CLAIMS_REFERENCE_DATA_LOADED` audit event with row counts and a source SHA-256. The local Compose
+profile runs it once against `test-data/claims` after bootstrap. Downgrading the migration refuses
+to run while claims audit events exist, because audit history is append-only.
+
 ## Evaluation
 
 The claims set lives in `test-data/claims`: 20 packets, `policies.csv`, `policy_vehicles.csv`, and

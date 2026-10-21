@@ -50,6 +50,17 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  claims-reference-data:
+    <<: *python-service
+    command: ["python", "-m", "intake_api.load_claims_reference", "/workspace/test-data/claims"]
+    profiles: ["local"]
+    volumes:
+      - ./test-data/claims:/workspace/test-data/claims:ro
+    depends_on:
+      bootstrap-data:
+        condition: service_completed_successfully
+    restart: "no"
+
   checkpoint-migrate:
     <<: *python-service
     command: ["python", "-m", "intake_orchestrator.checkpoint_setup"]
