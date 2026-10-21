@@ -42,7 +42,8 @@ See [the implementation checklist](docs/implementation-checklist.md),
 Copy `.env.example` to `.env` and replace placeholder credentials before starting containers. The
 local Compose profile enables one-click role sessions, so UI users do not copy demo bearer tokens;
 the tokens remain available for CLI examples. The default `AGENT_PROVIDER=stub` needs no live
-model. Set `AGENT_MODEL` and the corresponding provider key to exercise OpenAI or Gemini. LangSmith
+model. Set `AGENT_MODEL` and the corresponding provider key to exercise OpenAI, Gemini, or
+Anthropic Claude (`AGENT_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`). LangSmith
 remains disabled and optional.
 
 ## Quality commands

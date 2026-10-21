@@ -10,9 +10,23 @@ from pydantic import ValidationError
 from intake_api.infrastructure.config import Settings
 from intake_orchestrator.agent.backend import InMemoryAgentBackend
 from intake_orchestrator.agent.contracts import SubmitRecommendationInput
-from intake_orchestrator.agent.errors import PolicyViolation, TransientDatabaseError
-from intake_orchestrator.agent.graph import compile_agent_subgraph, run_agent
-from intake_orchestrator.agent.models import StubChatModel, create_chat_model
+from intake_orchestrator.agent.errors import (
+    PolicyViolation,
+    ProviderUnavailable,
+    TransientDatabaseError,
+    TransientProviderRateLimit,
+    TransientProviderTimeout,
+)
+from intake_orchestrator.agent.graph import (
+    _raise_mapped_provider_error,  # pyright: ignore[reportPrivateUsage]
+    compile_agent_subgraph,
+    run_agent,
+)
+from intake_orchestrator.agent.models import (
+    ANTHROPIC_MAX_OUTPUT_TOKENS,
+    StubChatModel,
+    create_chat_model,
+)
 from intake_orchestrator.agent.policy import AgentLimits, AgentPolicyGuard
 from intake_orchestrator.agent.tools import validate_tool_output
 
@@ -437,12 +451,24 @@ def test_provider_factories_use_configured_model_without_network_calls() -> None
         )
     )
 
+    anthropic = create_chat_model(
+        Settings(
+            agent_provider="anthropic",
+            agent_model="configured-claude",
+            anthropic_api_key="test-only",
+        )
+    )
+
     assert type(stub).__name__ == "StubChatModel"
     assert type(openai).__name__ == "ChatOpenAI"
     assert type(gemini).__name__ == "ChatGoogleGenerativeAI"
+    assert type(anthropic).__name__ == "ChatAnthropic"
+    assert anthropic.model == "configured-claude"  # type: ignore[attr-defined]
+    assert anthropic.max_retries == 0  # type: ignore[attr-defined]
+    assert anthropic.max_tokens == ANTHROPIC_MAX_OUTPUT_TOKENS  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize("provider", ["openai", "gemini"])
+@pytest.mark.parametrize("provider", ["openai", "gemini", "anthropic"])
 def test_live_provider_configuration_requires_its_credential(provider: str) -> None:
     with pytest.raises(ValidationError, match="API_KEY"):
         Settings(
@@ -450,4 +476,22 @@ def test_live_provider_configuration_requires_its_credential(provider: str) -> N
             agent_model="configured-model",
             openai_api_key=None,
             google_api_key=None,
+            anthropic_api_key=None,
         )
+
+
+@pytest.mark.parametrize(
+    ("error_name", "expected"),
+    [
+        ("RateLimitError", TransientProviderRateLimit),
+        ("APITimeoutError", TransientProviderTimeout),
+        ("APIConnectionError", ProviderUnavailable),
+        ("OverloadedError", ProviderUnavailable),
+    ],
+)
+def test_anthropic_style_provider_errors_map_to_safe_transient_errors(
+    error_name: str, expected: type[Exception]
+) -> None:
+    error = type(error_name, (Exception,), {})()
+    with pytest.raises(expected):
+        _raise_mapped_provider_error(error)

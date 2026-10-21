@@ -142,5 +142,6 @@ AGENT_PROVIDER=openai AGENT_MODEL=<model> OPENAI_API_KEY=<key> \
 EVALUATION_LIVE_ENABLED=true uv run python -m evaluation.live_claims_extraction
 ```
 
-A live run makes two model calls per packet (40 total).
+A live run makes two model calls per packet (40 total). Any configured provider works, for example
+`AGENT_PROVIDER=anthropic AGENT_MODEL=<claude model> ANTHROPIC_API_KEY=<key>`.
 

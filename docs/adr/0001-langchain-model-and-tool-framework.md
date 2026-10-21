@@ -34,3 +34,11 @@ malformed/unavailable responses degrade to `AGENT_INCOMPLETE`, never an authorit
 - Direct provider SDKs: duplicate tool/structured-output orchestration and increase switching cost.
 - A general-purpose autonomous agent: exposes more authority and less predictable control.
 - Live models in unit tests: non-deterministic, slow, costly, and credential-dependent.
+
+## Amendment (2026-10-21)
+
+An Anthropic Claude adapter (`AGENT_PROVIDER=anthropic`, `langchain-anthropic`) was added behind the
+same provider-neutral port. It sets an explicit output-token budget, disables client retries like
+the other adapters, and maps rate-limit, timeout, connection, and overload errors to the existing
+transient and unavailable categories. No graph, tool, or authority behavior changed.
+
