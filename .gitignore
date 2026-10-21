@@ -16,3 +16,4 @@ dist/
 storage/
 .DS_Store
 *.log
+evaluation-live-report.json

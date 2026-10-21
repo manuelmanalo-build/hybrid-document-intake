@@ -100,7 +100,7 @@ implementations.
 
 - [x] Record the claim-packet decision, claims scope, CR-001 through CR-014, and
   `claim-routing-v1` queue policy; amend the constitution and first-slice scope.
-- [ ] Add a live, opt-in extraction evaluation runner that measures real provider output against
+- [x] Add a live, opt-in extraction evaluation runner that measures real provider output against
   fixtures (diagnostic only; never required by ordinary CI).
 - [ ] Add the synthetic claims evaluation set with policy, vehicle, and ground-truth files and a
   fixture-integrity test.
