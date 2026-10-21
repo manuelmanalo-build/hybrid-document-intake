@@ -102,7 +102,7 @@ implementations.
   `claim-routing-v1` queue policy; amend the constitution and first-slice scope.
 - [x] Add a live, opt-in extraction evaluation runner that measures real provider output against
   fixtures (diagnostic only; never required by ordinary CI).
-- [ ] Add the synthetic claims evaluation set with policy, vehicle, and ground-truth files and a
+- [x] Add the synthetic claims evaluation set with policy, vehicle, and ground-truth files and a
   fixture-integrity test.
 - [ ] Add policy and policy-vehicle reference tables, claim candidate tables, and migrations.
 - [ ] Add `CLAIM_PACKET` classification, segment and claim-candidate contracts, and stub extractors.

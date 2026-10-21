@@ -14,3 +14,6 @@ rebuild the checked-in fixtures deterministically, run:
 uv run python scripts/generate_test_pdf.py
 uv run python scripts/generate_evaluation_fixtures.py
 ```
+
+`claims/` holds the 20-packet synthetic claims evaluation set for the claims slice (ADR 0008); see
+`claims/README.md`.
