@@ -28,7 +28,8 @@ successful case requires a human decision.
 
 ## Deliberately deferred
 
-Additional document types, automatic approval, parallel tools, multi-agent delegation, arbitrary
+Additional document types (claim packets are now governed by ADR 0008 and
+`claims-slice-scope.md`), automatic approval, parallel tools, multi-agent delegation, arbitrary
 retrieval, direct SaaS administration, production object-store adapters, enterprise identity
 provider integration, and production observability export are outside this slice. Visual extraction
 may use bounded rendered pages but cannot put page images in checkpoints.
