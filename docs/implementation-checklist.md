@@ -109,11 +109,14 @@ implementations.
 - [x] Add segment, claim-candidate, and claim tool contracts (`claim-packet-v1`), separately
   versioned claim prompts, stub and LangChain claim extractors/segmenters, and an opt-in live
   claims diagnostic scored against ground truth.
-- [ ] Add `CLAIM_PACKET` to the classification set together with the claim tool registry (enabling
-  the classification before claim tools exist would only produce incomplete claim runs).
-- [ ] Register and guard the five claim tools with document-type scoping and limits.
-- [ ] Implement versioned CR-001 through CR-014 and claim decision confidence.
-- [ ] Implement `claim-routing-v1` queue assignment on review tasks.
+- [x] Add `CLAIM_PACKET` to the classification set together with the claim tool registry, and replace
+  the placeholder classification/inspection with a keyword classifier (stub) and a model classifier
+  plus real inspection (live providers).
+- [x] Register and guard the five claim tools with document-type scoping and limits.
+- [x] Implement versioned CR-001 through CR-014 and claim decision confidence.
+- [x] Implement `claim-routing-v1` queue decisions and duplicate keys in authoritative validation;
+  a rejection releases the claim's duplicate key.
+- [ ] Expose the routing decision on review-task APIs.
 - [ ] Add the Angular claim review form and queue filters.
 - [ ] Score claims against ground truth with the zero-false-fast-track gate in CI.
 - [ ] Port the claims fixture generator into `scripts/` under Ruff rules.

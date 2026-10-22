@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-DocumentType = Literal["AP_INVOICE", "UNSUPPORTED", "UNKNOWN"]
+DocumentType = Literal["AP_INVOICE", "CLAIM_PACKET", "UNSUPPORTED", "UNKNOWN"]
 Disposition = Literal["HUMAN_REVIEW", "REQUEST_INFORMATION", "REJECT_UNSUPPORTED"]
 ReasonCode = Annotated[
     str,

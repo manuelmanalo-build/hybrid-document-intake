@@ -65,7 +65,7 @@ reason code, and the input values it used.
 | CR-006 | No earlier non-rejected claim in the tenant has the same policy number, VIN, and loss date. | REVIEW (`DUPLICATE`) |
 | CR-007 | Report date is no more than 30 days after the loss date. | REVIEW (`LATE_REPORTING`) |
 | CR-008 | Loss date is not within 14 days after policy inception. | REVIEW (`LOSS_NEAR_INCEPTION`) |
-| CR-009 | No injury is indicated on the form or mentioned in correspondence. Disagreement adds `INJURY_CONFLICT`. | REVIEW (`INJURY_INDICATED`) |
+| CR-009 | No injury is indicated on the form or mentioned in correspondence. A form that says no injury while correspondence describes one adds `INJURY_CONFLICT`. | REVIEW (`INJURY_INDICATED`) |
 | CR-010 | Estimate parts + labor + materials + tax equals the total within the configured Decimal tolerance. | FAIL |
 | CR-011 | Estimate total is below 75% of the vehicle's actual cash value. | REVIEW (`POSSIBLE_TOTAL_LOSS`) |
 | CR-012 | Estimate total is above the applicable deductible (collision or comprehensive). | REVIEW (`AT_OR_BELOW_DEDUCTIBLE`) |
@@ -124,6 +124,14 @@ validates every row before writing, upserts by business key, never deletes, and 
 `CLAIMS_REFERENCE_DATA_LOADED` audit event with row counts and a source SHA-256. The local Compose
 profile runs it once against `test-data/claims` after bootstrap. Downgrading the migration refuses
 to run while claims audit events exist, because audit history is append-only.
+
+## Decision confidence
+
+Claims use `decision-confidence-claims-v1`: the invoice components with policy-match and
+vehicle-match quality in place of supplier and purchase-order match (weights 0.15 classification,
+0.20 completeness, 0.20 critical-field confidence, 0.15 evidence coverage, 0.10 policy match, 0.10
+vehicle match, 0.10 rule score). A `NEAR` vehicle match scores 0.5. Confidence informs reviewers;
+it never selects a queue.
 
 ## Evaluation
 

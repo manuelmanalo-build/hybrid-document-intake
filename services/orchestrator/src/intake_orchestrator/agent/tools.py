@@ -9,6 +9,18 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel
 
+# Claim-packet tools (ADR 0008). Kept in a separate import block so the invoice surface is easy to
+# audit on its own.
+from intake_orchestrator.agent.claim_contracts import (
+    ExtractClaimInput,
+    ExtractClaimOutput,
+    LookupPolicyInput,
+    LookupPolicyOutput,
+    LookupPolicyVehicleInput,
+    LookupPolicyVehicleOutput,
+    SegmentClaimPacketInput,
+    SegmentClaimPacketOutput,
+)
 from intake_orchestrator.agent.contracts import (
     ClassifyDocumentInput,
     ClassifyDocumentOutput,
@@ -45,6 +57,11 @@ TOOL_SCHEMAS: dict[str, type[BaseModel]] = {
     "validate_candidate": ValidateCandidateInput,
     "retry_extraction": RetryExtractionInput,
     "submit_recommendation": SubmitRecommendationInput,
+    "segment_claim_packet": SegmentClaimPacketInput,
+    "extract_claim_from_text": ExtractClaimInput,
+    "extract_claim_from_visual_content": ExtractClaimInput,
+    "lookup_policy": LookupPolicyInput,
+    "lookup_policy_vehicle": LookupPolicyVehicleInput,
 }
 
 TOOL_OUTPUT_SCHEMAS: dict[str, type[BaseModel]] = {
@@ -57,18 +74,68 @@ TOOL_OUTPUT_SCHEMAS: dict[str, type[BaseModel]] = {
     "validate_candidate": ValidateCandidateOutput,
     "retry_extraction": RetryExtractionOutput,
     "submit_recommendation": SubmitRecommendationOutput,
+    "segment_claim_packet": SegmentClaimPacketOutput,
+    "extract_claim_from_text": ExtractClaimOutput,
+    "extract_claim_from_visual_content": ExtractClaimOutput,
+    "lookup_policy": LookupPolicyOutput,
+    "lookup_policy_vehicle": LookupPolicyVehicleOutput,
 }
+
+INVOICE_TOOLS = frozenset(
+    {
+        "extract_invoice_from_text",
+        "extract_invoice_from_visual_content",
+        "lookup_supplier",
+        "lookup_purchase_order",
+    }
+)
+CLAIM_TOOLS = frozenset(
+    {
+        "segment_claim_packet",
+        "extract_claim_from_text",
+        "extract_claim_from_visual_content",
+        "lookup_policy",
+        "lookup_policy_vehicle",
+    }
+)
+EXTRACTION_TOOLS = frozenset(
+    {
+        "extract_invoice_from_text",
+        "extract_invoice_from_visual_content",
+        "extract_claim_from_text",
+        "extract_claim_from_visual_content",
+    }
+)
 
 TOOL_DESCRIPTIONS = {
     "inspect_document": "Inspect tenant-scoped PDF metadata and bounded content characteristics.",
-    "classify_document": "Classify the inspected document as AP_INVOICE, UNSUPPORTED, or UNKNOWN.",
+    "classify_document": (
+        "Classify the inspected document as AP_INVOICE, CLAIM_PACKET, UNSUPPORTED, or UNKNOWN."
+    ),
     "extract_invoice_from_text": "Extract an AP invoice candidate from bounded PDF text.",
     "extract_invoice_from_visual_content": "Extract an AP invoice candidate from visual pages.",
     "lookup_supplier": "Look up a tenant-scoped supplier reference.",
     "lookup_purchase_order": "Look up a tenant-scoped purchase-order reference.",
-    "validate_candidate": "Run deterministic invoice rules for advisory agent feedback.",
+    "validate_candidate": (
+        "Run the deterministic rules for the candidate's document type (invoice BR rules or "
+        "claim CR rules) for advisory agent feedback."
+    ),
     "retry_extraction": "Authorize a bounded subsequent extraction attempt.",
     "submit_recommendation": "Submit the final non-authoritative recommendation.",
+    "segment_claim_packet": (
+        "For a CLAIM_PACKET only: label every page as LOSS_NOTICE, REPAIR_ESTIMATE, "
+        "POLICE_REPORT, CORRESPONDENCE, or OTHER. Required before claim extraction."
+    ),
+    "extract_claim_from_text": (
+        "For a CLAIM_PACKET only: extract a claim candidate from bounded PDF text."
+    ),
+    "extract_claim_from_visual_content": (
+        "For a CLAIM_PACKET only: extract a claim candidate from page images (scanned packets)."
+    ),
+    "lookup_policy": "For a CLAIM_PACKET only: look up a tenant-scoped policy by number.",
+    "lookup_policy_vehicle": (
+        "For a CLAIM_PACKET only: check whether a VIN is on a policy (EXACT, NEAR, or NONE)."
+    ),
 }
 
 
