@@ -4,7 +4,7 @@ import asyncio
 import time
 
 # pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownLambdaType=false
-from typing import Literal, NoReturn, Protocol, TypedDict, cast
+from typing import Literal, NoReturn, NotRequired, Protocol, TypedDict, cast
 from uuid import UUID
 
 from langchain_core.exceptions import OutputParserException
@@ -32,7 +32,12 @@ from intake_orchestrator.agent.errors import (
 from intake_orchestrator.agent.models import require_one_tool_call
 from intake_orchestrator.agent.policy import AgentLimits, AgentPolicyGuard
 from intake_orchestrator.agent.prompts import AGENT_SYSTEM_PROMPT
-from intake_orchestrator.agent.tools import build_tools, stable_operation_key, tool_map
+from intake_orchestrator.agent.tools import (
+    EXTRACTION_TOOLS,
+    build_tools,
+    stable_operation_key,
+    tool_map,
+)
 
 
 class AgentBackend(Protocol):
@@ -88,6 +93,8 @@ class AgentState(TypedDict):
     extraction_attempts: int
     supplier_lookups: int
     purchase_order_lookups: int
+    policy_lookups: NotRequired[int]
+    vehicle_lookups: NotRequired[int]
     tools_used: list[str]
     tool_results: dict[str, dict[str, object]]
     requested_tool: str
@@ -189,6 +196,9 @@ def build_agent_subgraph(
             purchase_order_lookups=state["purchase_order_lookups"],
             tools_used=state["tools_used"],
             extraction_candidate_id=state.get("extraction_candidate_id"),
+            document_type=_classified_type(state),
+            policy_lookups=state.get("policy_lookups", 0),
+            vehicle_lookups=state.get("vehicle_lookups", 0),
         )
         validated = parsed.model_dump(mode="json")
         operation_key = stable_operation_key(
@@ -242,7 +252,7 @@ def build_agent_subgraph(
             "tools_used": tools_used,
             "tool_call_count": state["tool_call_count"] + 1,
         }
-        if tool_name.startswith("extract_invoice_from_"):
+        if tool_name in EXTRACTION_TOOLS:
             update["extraction_attempts"] = state["extraction_attempts"] + 1
             update["extraction_candidate_id"] = str(
                 state["last_tool_result"]["extraction_candidate_id"]
@@ -251,6 +261,10 @@ def build_agent_subgraph(
             update["supplier_lookups"] = state["supplier_lookups"] + 1
         elif tool_name == "lookup_purchase_order":
             update["purchase_order_lookups"] = state["purchase_order_lookups"] + 1
+        elif tool_name == "lookup_policy":
+            update["policy_lookups"] = state.get("policy_lookups", 0) + 1
+        elif tool_name == "lookup_policy_vehicle":
+            update["vehicle_lookups"] = state.get("vehicle_lookups", 0) + 1
         elif tool_name == "submit_recommendation":
             update["recommendation_id"] = str(state["last_tool_result"]["recommendation_id"])
         return update
@@ -426,6 +440,8 @@ async def run_agent(
         "extraction_attempts": 0,
         "supplier_lookups": 0,
         "purchase_order_lookups": 0,
+        "policy_lookups": 0,
+        "vehicle_lookups": 0,
         "tools_used": [],
         "tool_results": {},
         "reason_codes": [],
@@ -492,3 +508,12 @@ def _raise_mapped_provider_error(error: Exception) -> NoReturn:
     if "apiconnection" in name or "serviceunavailable" in name or "overloaded" in name:
         raise ProviderUnavailable("Model provider unavailable") from error
     raise error
+
+
+def _classified_type(state: AgentState) -> str | None:
+    """The document type from a completed classify_document call, if any."""
+    classification = state["tool_results"].get("classify_document")
+    if classification is None:
+        return None
+    value = classification.get("value")
+    return value if isinstance(value, str) else None

@@ -41,3 +41,18 @@ CLAIM_EXTRACTION_SYSTEM_PROMPT = (
 CLAIM_PROMPT_CONTENT_SHA256 = hashlib.sha256(
     f"{CLAIM_SEGMENTATION_SYSTEM_PROMPT}\n{CLAIM_EXTRACTION_SYSTEM_PROMPT}".encode()
 ).hexdigest()
+
+# Document classification runs for every upload, so it has its own version and content hash.
+CLASSIFICATION_PROMPT_VERSION = "document-classification-v1"
+
+CLASSIFICATION_SYSTEM_PROMPT = (
+    "Classify the supplied document as exactly one of AP_INVOICE (a supplier invoice), "
+    "CLAIM_PACKET (a personal-auto insurance claim packet such as a loss notice with a repair "
+    "estimate, police report, or claim correspondence), UNSUPPORTED (a readable document of any "
+    "other kind), or UNKNOWN (unreadable). Give a confidence from 0 to 1. Never make an approval, "
+    "coverage, routing, or denial decision."
+)
+
+CLASSIFICATION_PROMPT_CONTENT_SHA256 = hashlib.sha256(
+    CLASSIFICATION_SYSTEM_PROMPT.encode()
+).hexdigest()

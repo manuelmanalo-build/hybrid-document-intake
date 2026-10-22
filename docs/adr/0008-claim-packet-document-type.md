@@ -62,3 +62,21 @@ and must not let a model approve or deny anything.
   decision across the authority boundary.
 - One upload per document inside a claim: does not match how FNOL packets actually arrive.
 - Touchless fast-track approval: violates the constitution and is not needed to show value.
+
+## Amendment (2026-10-22): classification and inspection
+
+Before this increment, `classify_document` returned `AP_INVOICE` and `inspect_document` returned a
+one-page document for every upload; both were placeholders. They are now real:
+
+- With the stub provider, classification is a deterministic keyword classifier over the bounded PDF
+  text: claim phrases (or a repair estimate with a VIN) give `CLAIM_PACKET`, "invoice" gives
+  `AP_INVOICE`, other text gives `UNSUPPORTED`, and no text gives `UNKNOWN`. Inspection stays
+  deterministic so the offline suite is unchanged.
+- With a live provider, classification is a structured model call (prompt
+  `document-classification-v1`, hashed separately) that also receives page images, and inspection
+  reports the real page count, text availability, and embedded images.
+
+This changes live-provider behavior for invoices too: a document that is not an invoice is no longer
+forced down the invoice path. Approved claims emit the existing generic `DOCUMENT_APPROVED` outbox
+event; a claim-specific integration payload remains deferred.
+

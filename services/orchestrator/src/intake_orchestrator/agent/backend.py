@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -13,17 +14,20 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from intake_api.domain.enums import ActorType, AuditEventType
+from intake_api.domain.enums import ActorType, AuditEventType, ClaimSegmentLabel
 from intake_api.domain.models import (
     AgentRecommendation,
     AgentRun,
     AgentToolCall,
     AuditEvent,
     Document,
+    DocumentPageSegment,
     DocumentVersion,
     ExtractionCandidate,
     ExtractionFieldEvidence,
     ExtractionRun,
+    Policy,
+    PolicyVehicle,
     PromptVersion,
     PurchaseOrder,
     ReviewedDocumentVersion,
@@ -33,6 +37,13 @@ from intake_api.domain.models import (
     ValidationResult,
     ValidationRun,
 )
+from intake_orchestrator.agent.claim_contracts import (
+    ClaimPacketCandidate,
+    ExtractClaimInput,
+    LookupPolicyInput,
+    LookupPolicyVehicleInput,
+)
+from intake_orchestrator.agent.classification import DocumentClassifier, KeywordDocumentClassifier
 from intake_orchestrator.agent.contracts import (
     APInvoiceCandidate,
     ExtractInvoiceInput,
@@ -43,14 +54,27 @@ from intake_orchestrator.agent.contracts import (
     ValidateCandidateInput,
 )
 from intake_orchestrator.agent.extraction import (
+    CLAIM_EXTRACTION_SCHEMA_VERSION,
     BoundedExtractionContent,
+    StructuredClaimExtractor,
+    StructuredClaimSegmenter,
     StructuredInvoiceExtractor,
+    StubStructuredClaimExtractor,
+    StubStructuredClaimSegmenter,
     candidate_business_data,
     candidate_completeness,
 )
-from intake_orchestrator.agent.pdf_content import read_bounded_pdf_content
-from intake_orchestrator.agent.prompts import PROMPT_CONTENT_SHA256
-from intake_orchestrator.agent.tools import validate_tool_output
+from intake_orchestrator.agent.pdf_content import pdf_page_count, read_bounded_pdf_content
+from intake_orchestrator.agent.prompts import CLAIM_PROMPT_VERSION, PROMPT_CONTENT_SHA256
+from intake_orchestrator.agent.tools import EXTRACTION_TOOLS, validate_tool_output
+from intake_orchestrator.claim_facts import load_claim_context
+from intake_orchestrator.claim_validation import (
+    CLAIM_RULESET_VERSION,
+    VehicleFacts,
+    match_vehicle,
+    safe_claim_data,
+    validate_claim_rules,
+)
 from intake_orchestrator.validation import (
     RULESET_VERSION,
     ValidationContext,
@@ -66,9 +90,16 @@ def stable_id(kind: str, operation_key: str) -> UUID:
 
 
 class InMemoryAgentBackend:
-    def __init__(self, *, text_available: bool = True, validation_retry: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        text_available: bool = True,
+        validation_retry: bool = False,
+        document_type: str = "AP_INVOICE",
+    ) -> None:
         self.text_available = text_available
         self.validation_retry = validation_retry
+        self.document_type = document_type
         self.results: dict[str, dict[str, object]] = {}
         self.calls: list[tuple[str, str]] = []
         self.agent_runs: dict[UUID, str] = {}
@@ -147,6 +178,7 @@ class InMemoryAgentBackend:
             operation_key,
             text_available=self.text_available,
             validation_retry=self.validation_retry,
+            document_type=self.document_type,
         )
         self.results[operation_key] = result
         self.calls.append((tool_name, operation_key))
@@ -169,6 +201,9 @@ class PostgresAgentBackend:
         prompt_version: str,
         extractor: StructuredInvoiceExtractor,
         storage_root: Path,
+        classifier: DocumentClassifier | None = None,
+        claim_extractor: StructuredClaimExtractor | None = None,
+        claim_segmenter: StructuredClaimSegmenter | None = None,
     ) -> None:
         self._sessions = session_factory
         self._graph_run_id = graph_run_id
@@ -180,6 +215,11 @@ class PostgresAgentBackend:
         self._prompt_version = prompt_version
         self._extractor = extractor
         self._storage_root = storage_root.resolve()
+        self._classifier = classifier or KeywordDocumentClassifier()
+        self._claim_extractor = claim_extractor or StubStructuredClaimExtractor(
+            model=model, prompt_version=CLAIM_PROMPT_VERSION
+        )
+        self._claim_segmenter = claim_segmenter or StubStructuredClaimSegmenter()
 
     async def start_run(self, agent_run_id: UUID) -> float:
         async with self._sessions() as session, session.begin():
@@ -516,7 +556,7 @@ class PostgresAgentBackend:
             if run is not None:
                 run.last_error_code = None
                 run.tool_call_count += 1
-                if tool_name.startswith("extract_invoice_from_"):
+                if tool_name in EXTRACTION_TOOLS:
                     run.extraction_attempt_count += 1
             return result
 
@@ -540,7 +580,142 @@ class PostgresAgentBackend:
         tenant_id = UUID(str(identity["tenant_id"]))
         document_id = UUID(str(identity["document_id"]))
         agent_run_id = UUID(str(identity["agent_run_id"]))
-        if tool_name.startswith("extract_invoice_from_"):
+        if tool_name == "inspect_document" and self._provider != "stub":
+            path = await self._stored_document_path(
+                session, tenant_id=tenant_id, document_id=document_id
+            )
+            content = read_bounded_pdf_content(path, include_images=True)
+            result["page_count"] = pdf_page_count(path)
+            result["text_available"] = bool(_strip_page_markers(content.text).strip())
+            result["visual_content_present"] = bool(content.image_data_urls)
+        elif tool_name == "classify_document":
+            path = await self._stored_document_path(
+                session, tenant_id=tenant_id, document_id=document_id
+            )
+            classification = await self._classifier.classify(
+                bounded_content=read_bounded_pdf_content(
+                    path, include_images=self._provider != "stub"
+                )
+            )
+            result = {
+                "value": classification.value,
+                "confidence": float(classification.confidence),
+                "reason_codes": list[str](),
+            }
+        elif tool_name == "segment_claim_packet":
+            path = await self._stored_document_path(
+                session, tenant_id=tenant_id, document_id=document_id
+            )
+            page_count = pdf_page_count(path)
+            segmentation = await self._claim_segmenter.segment(
+                page_count=page_count,
+                bounded_content=await self._bounded_document_content(
+                    session, tenant_id=tenant_id, document_id=document_id, include_images=True
+                ),
+            )
+            for segment in segmentation.segments:
+                session.add(
+                    DocumentPageSegment(
+                        id=stable_id("page-segment", f"{agent_run_id}:{segment.page_number}"),
+                        tenant_id=tenant_id,
+                        document_id=document_id,
+                        agent_run_id=agent_run_id,
+                        page_number=segment.page_number,
+                        segment_label=ClaimSegmentLabel(segment.label),
+                        confidence=segment.confidence,
+                    )
+                )
+            labels = [segment.label for segment in segmentation.segments]
+            result = {
+                "page_count": page_count,
+                "labels": labels,
+                "reason_codes": ["UNSUPPORTED_SEGMENT"] if "OTHER" in labels else [],
+            }
+        elif tool_name.startswith("extract_claim_from_"):
+            parsed_claim = cast(ExtractClaimInput, arguments)
+            claim_strategy: Literal["TEXT", "VISUAL"] = (
+                "TEXT" if tool_name.endswith("text") else "VISUAL"
+            )
+            claim = await self._claim_extractor.extract(
+                strategy=claim_strategy,
+                bounded_content=await self._bounded_document_content(
+                    session,
+                    tenant_id=tenant_id,
+                    document_id=document_id,
+                    include_images=claim_strategy == "VISUAL",
+                ),
+            )
+            completeness = candidate_completeness(claim)
+            result = {
+                "extraction_run_id": str(stable_id("extraction-run", operation_key)),
+                "extraction_candidate_id": str(stable_id("candidate", operation_key)),
+                "strategy": claim_strategy,
+                "completeness_score": float(completeness),
+                "reason_codes": []
+                if completeness == Decimal("1.0000")
+                else ["EXTRACTION_INCOMPLETE"],
+            }
+            await self._persist_candidate(
+                session,
+                candidate=claim,
+                document_type="CLAIM_PACKET",
+                schema_version=CLAIM_EXTRACTION_SCHEMA_VERSION,
+                prompt_version=CLAIM_PROMPT_VERSION,
+                attempt_number=parsed_claim.attempt_number,
+                result=result,
+                identity=(tenant_id, document_id, agent_run_id),
+                operation_key=operation_key,
+            )
+        elif tool_name == "lookup_policy":
+            parsed_policy = cast(LookupPolicyInput, arguments)
+            policy = await session.scalar(
+                select(Policy).where(
+                    Policy.tenant_id == tenant_id,
+                    Policy.policy_number == parsed_policy.policy_number.strip(),
+                )
+            )
+            result = {
+                "matched": policy is not None,
+                "policy_id": str(policy.id) if policy else None,
+                "status": policy.status.value if policy else None,
+            }
+        elif tool_name == "lookup_policy_vehicle":
+            parsed_vehicle = cast(LookupPolicyVehicleInput, arguments)
+            result = {"match_kind": "NONE", "vehicle_id": None}
+            policy = await session.scalar(
+                select(Policy).where(
+                    Policy.tenant_id == tenant_id,
+                    Policy.policy_number == parsed_vehicle.policy_number.strip(),
+                )
+            )
+            if policy is not None:
+                vehicles = list(
+                    await session.scalars(
+                        select(PolicyVehicle).where(
+                            PolicyVehicle.tenant_id == tenant_id,
+                            PolicyVehicle.policy_id == policy.id,
+                        )
+                    )
+                )
+                for vehicle in vehicles:
+                    kind, matched = match_vehicle(
+                        parsed_vehicle.vin,
+                        (
+                            VehicleFacts(
+                                vin=vehicle.vin,
+                                model_year=vehicle.model_year,
+                                make=vehicle.make,
+                                actual_cash_value=vehicle.actual_cash_value,
+                            ),
+                        ),
+                        model_year=vehicle.model_year,
+                        make=vehicle.make,
+                    )
+                    if matched is not None:
+                        result = {"match_kind": kind, "vehicle_id": str(vehicle.id)}
+                        if kind == "EXACT":
+                            break
+        elif tool_name.startswith("extract_invoice_from_"):
             parsed = cast(ExtractInvoiceInput, arguments)
             run_id = UUID(str(result["extraction_run_id"]))
             candidate_id = UUID(str(result["extraction_candidate_id"]))
@@ -658,6 +833,13 @@ class PostgresAgentBackend:
             )
             if candidate is None:
                 raise PermissionError("Extraction candidate is not available in the tool tenant")
+            if candidate.document_type == "CLAIM_PACKET":
+                return await self._advisory_claim_validation(
+                    session,
+                    candidate=candidate,
+                    identity=(tenant_id, document_id),
+                    operation_key=operation_key,
+                )
             candidate_data = safe_candidate_data(candidate.candidate_data)
             field_confidence = dict(
                 (
@@ -781,14 +963,153 @@ class PostgresAgentBackend:
             )
         return cast(dict[str, object], result)
 
-    async def _bounded_document_content(
+    async def _persist_candidate(
         self,
         session: AsyncSession,
         *,
-        tenant_id: UUID,
-        document_id: UUID,
-        include_images: bool,
-    ) -> BoundedExtractionContent:
+        candidate: ClaimPacketCandidate,
+        document_type: str,
+        schema_version: str,
+        prompt_version: str,
+        attempt_number: int,
+        result: Mapping[str, object],
+        identity: tuple[UUID, UUID, UUID],
+        operation_key: str,
+    ) -> None:
+        tenant_id, document_id, agent_run_id = identity
+        run_id = UUID(str(result["extraction_run_id"]))
+        candidate_id = UUID(str(result["extraction_candidate_id"]))
+        extraction_run = ExtractionRun(
+            id=run_id,
+            tenant_id=tenant_id,
+            document_id=document_id,
+            agent_run_id=agent_run_id,
+            operation_key=operation_key,
+            strategy=str(result["strategy"]),
+            attempt_number=attempt_number,
+            provider=self._provider,
+            model=self._model,
+            prompt_version=prompt_version,
+            schema_version=schema_version,
+            status="COMPLETED",
+        )
+        session.add(extraction_run)
+        await session.flush([extraction_run])
+        extraction_candidate = ExtractionCandidate(
+            id=candidate_id,
+            tenant_id=tenant_id,
+            document_id=document_id,
+            extraction_run_id=run_id,
+            document_type=document_type,
+            candidate_data=candidate_business_data(candidate),
+            completeness_score=candidate_completeness(candidate),
+        )
+        session.add(extraction_candidate)
+        await session.flush([extraction_candidate])
+        for field_name in type(candidate).model_fields:
+            field = getattr(candidate, field_name)
+            session.add(
+                ExtractionFieldEvidence(
+                    id=stable_id("field-evidence", f"{candidate_id}:{field_name}"),
+                    tenant_id=tenant_id,
+                    candidate_id=candidate_id,
+                    field_name=field_name,
+                    confidence=field.confidence,
+                    source_page=field.source_page,
+                    evidence_excerpt=field.evidence_excerpt[:500],
+                    extraction_strategy=field.extraction_strategy,
+                    provider=field.provider,
+                    model=field.model,
+                    schema_version=field.schema_version,
+                    prompt_version=field.prompt_version,
+                )
+            )
+        session.add(
+            _audit(
+                event_id=stable_id("extraction-completed", operation_key),
+                tenant_id=tenant_id,
+                document_id=document_id,
+                graph_run_id=self._graph_run_id,
+                agent_run_id=agent_run_id,
+                correlation_id=self._correlation_id,
+                event_type=AuditEventType.EXTRACTION_COMPLETED,
+                metadata={"strategy": str(result["strategy"]), "attempt": attempt_number},
+            )
+        )
+
+    async def _advisory_claim_validation(
+        self,
+        session: AsyncSession,
+        *,
+        candidate: ExtractionCandidate,
+        identity: tuple[UUID, UUID],
+        operation_key: str,
+    ) -> dict[str, object]:
+        tenant_id, document_id = identity
+        field_confidence = dict(
+            (
+                await session.execute(
+                    select(
+                        ExtractionFieldEvidence.field_name, ExtractionFieldEvidence.confidence
+                    ).where(
+                        ExtractionFieldEvidence.tenant_id == tenant_id,
+                        ExtractionFieldEvidence.candidate_id == candidate.id,
+                    )
+                )
+            )
+            .tuples()
+            .all()
+        )
+        data = safe_claim_data(candidate.candidate_data).model_copy(
+            update={"field_confidence": field_confidence}
+        )
+        results = validate_claim_rules(
+            data,
+            await load_claim_context(
+                session,
+                tenant_id=tenant_id,
+                document_id=document_id,
+                data=data,
+                business_date=datetime.now(UTC).date(),
+            ),
+        )
+        reasons = failing_reason_codes(results)
+        validation_id = stable_id("agent-validation", operation_key)
+        validation_run = ValidationRun(
+            id=validation_id,
+            tenant_id=tenant_id,
+            document_id=document_id,
+            graph_run_id=self._graph_run_id,
+            extraction_candidate_id=candidate.id,
+            phase=f"AGENT_{operation_key[:20]}",
+            authoritative=False,
+            reason_codes=reasons,
+        )
+        session.add(validation_run)
+        await session.flush([validation_run])
+        for rule_result in results:
+            session.add(
+                ValidationResult(
+                    id=stable_id("validation-result", f"{validation_id}:{rule_result.rule_id}"),
+                    tenant_id=tenant_id,
+                    validation_run_id=validation_id,
+                    rule_id=rule_result.rule_id,
+                    rule_version=CLAIM_RULESET_VERSION,
+                    outcome=rule_result.outcome,
+                    reason_code=rule_result.reason_code,
+                    sanitized_details={},
+                )
+            )
+        retry_codes = {"CRITICAL_FIELD_MISSING", "CRITICAL_FIELD_LOW_CONFIDENCE"}
+        return {
+            "valid": not reasons,
+            "retry_recommended": any(result.reason_code in retry_codes for result in results),
+            "reason_codes": reasons,
+        }
+
+    async def _stored_document_path(
+        self, session: AsyncSession, *, tenant_id: UUID, document_id: UUID
+    ) -> Path:
         row = await session.execute(
             select(StoredObject.object_key, StoredObject.byte_size)
             .join(DocumentVersion, DocumentVersion.stored_object_id == StoredObject.id)
@@ -806,6 +1127,19 @@ class PostgresAgentBackend:
             raise PermissionError("Stored object key escapes the configured storage root")
         if path.stat().st_size != byte_size:
             raise RuntimeError("Immutable stored object size does not match metadata")
+        return path
+
+    async def _bounded_document_content(
+        self,
+        session: AsyncSession,
+        *,
+        tenant_id: UUID,
+        document_id: UUID,
+        include_images: bool,
+    ) -> BoundedExtractionContent:
+        path = await self._stored_document_path(
+            session, tenant_id=tenant_id, document_id=document_id
+        )
         if self._provider == "stub":
             return BoundedExtractionContent(
                 text="Deterministic stub extraction input; bytes remain out of graph state."
@@ -864,6 +1198,7 @@ def _deterministic_result(
     *,
     text_available: bool = True,
     validation_retry: bool = False,
+    document_type: str = "AP_INVOICE",
 ) -> dict[str, object]:
     if tool_name == "inspect_document":
         return {
@@ -874,8 +1209,14 @@ def _deterministic_result(
             "media_type": "application/pdf",
         }
     if tool_name == "classify_document":
-        return {"value": "AP_INVOICE", "confidence": 0.9, "reason_codes": []}
-    if tool_name.startswith("extract_invoice_from_"):
+        return {"value": document_type, "confidence": 0.9, "reason_codes": []}
+    if tool_name == "segment_claim_packet":
+        return {"page_count": 2, "labels": ["LOSS_NOTICE", "REPAIR_ESTIMATE"], "reason_codes": []}
+    if tool_name == "lookup_policy":
+        return {"matched": False, "policy_id": None, "status": None}
+    if tool_name == "lookup_policy_vehicle":
+        return {"match_kind": "NONE", "vehicle_id": None}
+    if tool_name.startswith(("extract_invoice_from_", "extract_claim_from_")):
         return {
             "extraction_run_id": str(stable_id("extraction-run", operation_key)),
             "extraction_candidate_id": str(stable_id("candidate", operation_key)),
@@ -945,3 +1286,7 @@ async def _add_audit_if_absent(session: AsyncSession, event: AuditEvent) -> None
     )
     if existing is None:
         session.add(event)
+
+
+def _strip_page_markers(text: str) -> str:
+    return "\n".join(line for line in text.splitlines() if not line.startswith("[page "))

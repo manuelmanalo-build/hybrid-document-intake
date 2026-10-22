@@ -7,7 +7,12 @@ from uuid import UUID
 from pydantic import BaseModel, ValidationError
 
 from intake_orchestrator.agent.errors import PolicyViolation
-from intake_orchestrator.agent.tools import TOOL_SCHEMAS
+from intake_orchestrator.agent.tools import (
+    CLAIM_TOOLS,
+    EXTRACTION_TOOLS,
+    INVOICE_TOOLS,
+    TOOL_SCHEMAS,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,6 +21,8 @@ class AgentLimits:
     max_extraction_attempts: int = 3
     max_supplier_lookups: int = 2
     max_purchase_order_lookups: int = 2
+    max_policy_lookups: int = 2
+    max_vehicle_lookups: int = 2
 
 
 class AgentPolicyGuard:
@@ -36,6 +43,9 @@ class AgentPolicyGuard:
         purchase_order_lookups: int,
         tools_used: list[str],
         extraction_candidate_id: str | None,
+        document_type: str | None = None,
+        policy_lookups: int = 0,
+        vehicle_lookups: int = 0,
     ) -> BaseModel:
         schema = TOOL_SCHEMAS.get(tool_name)
         if schema is None:
@@ -54,7 +64,24 @@ class AgentPolicyGuard:
             raise PolicyViolation("Tool agent-run identity does not match the active run")
         self._reject_unauthorized_content(values)
 
-        if tool_name.startswith("extract_invoice_from_"):
+        # Document-type scoping is enforced here, not in the prompt (ADR 0008): invoice tools
+        # need an AP_INVOICE classification and claim tools need a CLAIM_PACKET classification.
+        if tool_name in INVOICE_TOOLS and document_type != "AP_INVOICE":
+            raise PolicyViolation("Invoice tools require an AP_INVOICE classification")
+        if tool_name in CLAIM_TOOLS and document_type != "CLAIM_PACKET":
+            raise PolicyViolation("Claim tools require a CLAIM_PACKET classification")
+        if tool_name == "segment_claim_packet" and "segment_claim_packet" in tools_used:
+            raise PolicyViolation("A claim packet is segmented once per agent run")
+        if tool_name.startswith("extract_claim_from_") and "segment_claim_packet" not in tools_used:
+            raise PolicyViolation("Claim extraction requires page segmentation first")
+        if tool_name == "lookup_policy" and policy_lookups >= self.limits.max_policy_lookups:
+            raise PolicyViolation("Policy-lookup limit reached")
+        if (
+            tool_name == "lookup_policy_vehicle"
+            and vehicle_lookups >= self.limits.max_vehicle_lookups
+        ):
+            raise PolicyViolation("Policy-vehicle-lookup limit reached")
+        if tool_name in EXTRACTION_TOOLS:
             if extraction_attempts >= self.limits.max_extraction_attempts:
                 raise PolicyViolation("Extraction-attempt limit reached")
             if int(values["attempt_number"]) != extraction_attempts + 1:
@@ -76,10 +103,12 @@ class AgentPolicyGuard:
             if not prerequisites.issubset(tools_used):
                 raise PolicyViolation("Recommendation prerequisites are incomplete")
             requested_candidate = values.get("extraction_candidate_id")
-            if values.get("document_type") == "AP_INVOICE" and (
+            if values.get("document_type") in {"AP_INVOICE", "CLAIM_PACKET"} and (
                 "validate_candidate" not in tools_used or extraction_candidate_id is None
             ):
-                raise PolicyViolation("AP invoice recommendation prerequisites are incomplete")
+                raise PolicyViolation("Recommendation prerequisites are incomplete for the type")
+            if document_type is not None and values.get("document_type") != document_type:
+                raise PolicyViolation("Recommendation document type does not match classification")
             if requested_candidate != extraction_candidate_id:
                 raise PolicyViolation("Recommendation candidate does not match agent state")
             if values.get("tools_used") != tools_used:

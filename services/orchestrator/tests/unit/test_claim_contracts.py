@@ -151,9 +151,23 @@ async def test_segmenters_label_every_page() -> None:
         await live.segment(page_count=3, bounded_content=CONTENT)
 
 
-def test_claim_contracts_do_not_change_the_invoice_agent_surface() -> None:
+def test_claim_tools_extend_the_registry_without_changing_the_invoice_prompt() -> None:
     assert PROMPT_CONTENT_SHA256 == (
         "d1c22e1af7034655f36ee84f8358eefb5c2bedc5210ae9b187411a60450dbd41"
     )
-    assert len(TOOL_OUTPUT_SCHEMAS) == 9
-    assert not any("claim" in name or "policy" in name for name in TOOL_OUTPUT_SCHEMAS)
+    assert set(TOOL_OUTPUT_SCHEMAS) == {
+        "inspect_document",
+        "classify_document",
+        "extract_invoice_from_text",
+        "extract_invoice_from_visual_content",
+        "lookup_supplier",
+        "lookup_purchase_order",
+        "validate_candidate",
+        "retry_extraction",
+        "submit_recommendation",
+        "segment_claim_packet",
+        "extract_claim_from_text",
+        "extract_claim_from_visual_content",
+        "lookup_policy",
+        "lookup_policy_vehicle",
+    }

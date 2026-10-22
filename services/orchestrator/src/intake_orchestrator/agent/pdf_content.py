@@ -48,3 +48,8 @@ def read_bounded_pdf_content(path: Path, *, include_images: bool) -> BoundedExtr
     return BoundedExtractionContent(
         text="\n".join(excerpts)[:MAX_CONTENT_CHARS], image_data_urls=tuple(image_data_urls)
     )
+
+
+def pdf_page_count(path: Path) -> int:
+    with path.open("rb") as stream:
+        return len(PdfReader(stream, strict=True).pages)

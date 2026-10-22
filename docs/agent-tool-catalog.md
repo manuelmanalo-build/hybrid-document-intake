@@ -9,7 +9,9 @@ ordinal, tool, and canonical validated arguments—the model cannot choose that 
 also validated against a Pydantic output contract before commit. Detailed fields/evidence remain in
 application tables.
 
-The immutable registry contains exactly the tools below. Default execution is serial. Policy checks,
+The immutable registry contains exactly the tools below. Invoice tools (`extract_invoice_*`,
+`lookup_supplier`, `lookup_purchase_order`) require an `AP_INVOICE` classification and claim tools
+require a `CLAIM_PACKET` classification; the policy guard enforces this. Default execution is serial. Policy checks,
 `TOOL_REQUESTED`, completion/failure/rejection audit, timing, provider metadata when applicable, and
 safe argument/result summaries apply to every tool. The initial slice uses the configured global
 per-tool timeout (30 seconds by default), serial execution, and a three-attempt LangGraph node retry
@@ -26,7 +28,12 @@ operation key and the persisted agent start time enforces the total deadline acr
 | `lookup_purchase_order` | identity; bounded PO number | match flag, optional PO ID/active flag, match quality | Current tenant reference data only; maximum two calls | Stable normalized argument key; read-only lookup |
 | `validate_candidate` | identity; extraction candidate ID | validity, retry recommendation, bounded rule reasons | Candidate belongs to tenant/document/run | Advisory run uses the deterministic rule engine; stable run/candidate key |
 | `retry_extraction` | identity; candidate ID; next strategy; bounded reasons | authorization, next attempt 2–3, next strategy | Existing candidate; prior validation; extraction counter below limit | No external effect; stable run/attempt key |
-| `submit_recommendation` | identity; optional candidate; closed document type/disposition; bounded reasons/actions/summary/tools | recommendation ID | Inspection and classification required; known AP invoice requires a candidate; no `AUTO_APPROVE` value exists | One stable recommendation operation per validated call |
+| `submit_recommendation` | identity; optional candidate; closed document type/disposition; bounded reasons/actions/summary/tools | recommendation ID | Inspection and classification required; the document type must equal the classification; an AP invoice or claim packet requires a validated candidate; no `AUTO_APPROVE` value exists | One stable recommendation operation per validated call |
+| `segment_claim_packet` | identity; `inspection_completed=true` | page count, one closed segment label per page, bounded reasons | Requires a `CLAIM_PACKET` classification; once per run; labels persisted per page | Stable run/call/argument operation key |
+| `extract_claim_from_text` | identity; attempt number 1–3 | extraction-run/candidate IDs, `TEXT`, completeness, reasons | `CLAIM_PACKET` classification and segmentation complete; shares the three-attempt extraction counter | Candidate/evidence persisted with schema `claim-packet-v1` |
+| `extract_claim_from_visual_content` | identity; attempt number 1–3 | extraction-run/candidate IDs, `VISUAL`, completeness, reasons | Same as text claim extraction; used for scanned packets | Same protections as text claim extraction |
+| `lookup_policy` | identity; bounded policy number | match flag, optional policy ID and status | `CLAIM_PACKET` only; current tenant reference data; maximum two calls | Read-only lookup |
+| `lookup_policy_vehicle` | identity; policy number; bounded VIN | `EXACT`, `NEAR` (mistyped VIN on a policy vehicle), or `NONE`, with optional vehicle ID | `CLAIM_PACKET` only; current tenant reference data; maximum two calls | Read-only lookup |
 
 ## Output restrictions
 

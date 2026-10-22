@@ -53,8 +53,7 @@ The Document Intake Resolution Agent is advisory. It may select only these regis
 - `retry_extraction`
 - `submit_recommendation`
 
-ADR 0008 adds claim-packet tools, introduced one increment at a time. A listed tool is executable
-only after it is registered, guarded, and tested; until then it does not exist:
+ADR 0008 adds the claim-packet tools:
 
 - `segment_claim_packet`
 - `extract_claim_from_text`
