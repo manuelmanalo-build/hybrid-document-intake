@@ -116,7 +116,8 @@ implementations.
 - [x] Implement versioned CR-001 through CR-014 and claim decision confidence.
 - [x] Implement `claim-routing-v1` queue decisions and duplicate keys in authoritative validation;
   a rejection releases the claim's duplicate key.
-- [ ] Expose the routing decision on review-task APIs.
+- [x] Expose claim queues, the workbench read model, service levels, typed claim corrections, and
+  audited reviewer re-routes (migration 0006) through `/api/v1/claims`.
 - [ ] Add the Angular claim review form and queue filters.
 - [ ] Score claims against ground truth with the zero-false-fast-track gate in CI.
 - [ ] Port the claims fixture generator into `scripts/` under Ruff rules.

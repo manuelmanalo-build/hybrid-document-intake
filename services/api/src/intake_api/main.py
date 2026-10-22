@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
 
+from intake_api.api.claims import router as claims_router
 from intake_api.api.correlation import CorrelationIdMiddleware
 from intake_api.api.demo_auth import router as demo_auth_router
 from intake_api.api.documents import router as documents_router
@@ -11,6 +12,7 @@ from intake_api.api.integrations import router as integrations_router
 from intake_api.api.problem_handlers import install_problem_handlers
 from intake_api.api.query import router as query_router
 from intake_api.api.review_tasks import router as review_tasks_router
+from intake_api.application.claims_review import ClaimsReviewService
 from intake_api.application.demo_sessions import DemoSessionStore
 from intake_api.application.intake import build_intake_service
 from intake_api.application.integrations import IntegrationAdminService
@@ -51,12 +53,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory = session_factory
     app.state.intake_service = build_intake_service(active_settings, session_factory)
     app.state.review_service = ReviewService(active_settings, session_factory)
+    app.state.claims_review_service = ClaimsReviewService(active_settings, session_factory)
     app.state.integration_admin_service = IntegrationAdminService(active_settings, session_factory)
     app.state.query_service = QueryService(active_settings, session_factory)
     app.add_middleware(CorrelationIdMiddleware)
     install_problem_handlers(app)
     app.include_router(documents_router)
     app.include_router(review_tasks_router)
+    app.include_router(claims_router)
     app.include_router(integrations_router)
     app.include_router(query_router)
     if active_settings.demo_role_login_enabled:

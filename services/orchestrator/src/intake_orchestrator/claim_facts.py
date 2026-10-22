@@ -90,19 +90,24 @@ async def duplicate_claim_exists(
     """CR-006: another document already holds an active key with this policy, VIN, and date."""
     if not data.policy_number or not data.vin_reported or data.loss_date is None:
         return False
-    found = await session.scalar(
-        select(ClaimIntakeKey.id)
-        .where(
-            ClaimIntakeKey.tenant_id == tenant_id,
-            ClaimIntakeKey.document_id != document_id,
-            ClaimIntakeKey.policy_number == data.policy_number,
-            ClaimIntakeKey.vin == data.vin_reported.strip().upper(),
-            ClaimIntakeKey.loss_date == data.loss_date,
-            ClaimIntakeKey.status == ClaimKeyStatus.ACTIVE,
+    # Only an EARLIER claim makes this one a duplicate. Once this document holds a key, a later
+    # copy must not turn the original into a duplicate when the original is revalidated.
+    own_created_at = await session.scalar(
+        select(ClaimIntakeKey.created_at).where(
+            ClaimIntakeKey.tenant_id == tenant_id, ClaimIntakeKey.document_id == document_id
         )
-        .limit(1)
     )
-    return found is not None
+    statement = select(ClaimIntakeKey.id).where(
+        ClaimIntakeKey.tenant_id == tenant_id,
+        ClaimIntakeKey.document_id != document_id,
+        ClaimIntakeKey.policy_number == data.policy_number,
+        ClaimIntakeKey.vin == data.vin_reported.strip().upper()[:17],
+        ClaimIntakeKey.loss_date == data.loss_date,
+        ClaimIntakeKey.status == ClaimKeyStatus.ACTIVE,
+    )
+    if own_created_at is not None:
+        statement = statement.where(ClaimIntakeKey.created_at < own_created_at)
+    return await session.scalar(statement.limit(1)) is not None
 
 
 async def latest_segment_labels(
