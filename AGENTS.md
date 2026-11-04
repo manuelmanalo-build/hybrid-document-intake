@@ -3,8 +3,10 @@
 ## Purpose and precedence
 
 This repository demonstrates enterprise document intake with a deterministic LangGraph parent
-graph and a bounded LangChain agent subgraph. Supported document types are AP invoices and, per
-[ADR 0008](docs/adr/0008-claim-packet-document-type.md), personal-auto claim packets. The deterministic application boundary is always
+graph and a bounded LangChain agent subgraph. Supported document types are AP invoices; per
+[ADR 0008](docs/adr/0008-claim-packet-document-type.md), personal-auto claim packets; and, per
+[ADR 0009](docs/adr/0009-campaign-brief-document-type-and-domain-packs.md), agency campaign briefs
+(in progress). The deterministic application boundary is always
 authoritative. The model proposes tool calls and a recommendation; it never approves, rejects, or
 performs an external side effect.
 
