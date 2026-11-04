@@ -96,6 +96,7 @@ class AgentState(TypedDict):
     purchase_order_lookups: int
     policy_lookups: NotRequired[int]
     vehicle_lookups: NotRequired[int]
+    sow_lookups: NotRequired[int]
     tools_used: list[str]
     tool_results: dict[str, dict[str, object]]
     requested_tool: str
@@ -440,6 +441,7 @@ async def run_agent(
         "purchase_order_lookups": 0,
         "policy_lookups": 0,
         "vehicle_lookups": 0,
+        "sow_lookups": 0,
         "tools_used": [],
         "tool_results": {},
         "reason_codes": [],

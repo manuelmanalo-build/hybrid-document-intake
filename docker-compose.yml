@@ -61,6 +61,17 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  brief-reference-data:
+    <<: *python-service
+    command: ["python", "-m", "intake_api.load_brief_reference", "/workspace/test-data/briefs"]
+    profiles: ["local"]
+    volumes:
+      - ./test-data/briefs:/workspace/test-data/briefs:ro
+    depends_on:
+      bootstrap-data:
+        condition: service_completed_successfully
+    restart: "no"
+
   checkpoint-migrate:
     <<: *python-service
     command: ["python", "-m", "intake_orchestrator.checkpoint_setup"]

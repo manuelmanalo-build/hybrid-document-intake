@@ -16,8 +16,9 @@ SHARED_MODULES = [
 SOURCE = Path("services/orchestrator/src/intake_orchestrator")
 
 
-def test_claims_is_registered_as_the_first_domain_pack() -> None:
-    assert set(PACKS) == {"CLAIM_PACKET"}
+def test_claims_and_briefs_are_registered_domain_packs() -> None:
+    assert set(PACKS) == {"CLAIM_PACKET", "CAMPAIGN_BRIEF"}
+    assert pack_for_tool("lookup_client_sow") is pack_for_type("CAMPAIGN_BRIEF")
     pack = pack_for_type("CLAIM_PACKET")
     assert pack is not None
     assert pack_for_type("AP_INVOICE") is None
@@ -45,5 +46,7 @@ def test_deterministic_results_satisfy_the_tool_output_contracts(document_type: 
 def test_shared_modules_contain_no_pack_specific_branches(module: str) -> None:
     text = (SOURCE / module).read_text()
 
-    assert "CLAIM_PACKET" not in text
-    assert "segment_claim_packet" not in text
+    for pack in PACKS.values():
+        assert pack.document_type not in text
+        for tool_name in pack.agent.tools:
+            assert tool_name not in text

@@ -34,6 +34,10 @@ operation key and the persisted agent start time enforces the total deadline acr
 | `extract_claim_from_visual_content` | identity; attempt number 1–3 | extraction-run/candidate IDs, `VISUAL`, completeness, reasons | Same as text claim extraction; used for scanned packets | Same protections as text claim extraction |
 | `lookup_policy` | identity; bounded policy number | match flag, optional policy ID and status | `CLAIM_PACKET` only; current tenant reference data; maximum two calls | Read-only lookup |
 | `lookup_policy_vehicle` | identity; policy number; bounded VIN | `EXACT`, `NEAR` (mistyped VIN on a policy vehicle), or `NONE`, with optional vehicle ID | `CLAIM_PACKET` only; current tenant reference data; maximum two calls | Read-only lookup |
+| `segment_brief_packet` | identity; `inspection_completed=true` | page count, one of `BRIEF`, `CORRESPONDENCE`, `MEDIA_PLAN`, `OTHER` per page | Requires a `CAMPAIGN_BRIEF` classification; once per run | Stable run/call/argument operation key |
+| `extract_brief_from_text` | identity; attempt number 1–3 | extraction-run/candidate IDs, `TEXT`, completeness, reasons | `CAMPAIGN_BRIEF` and segmentation complete; shares the three-attempt counter | Work request with per-deliverable evidence, schema `campaign-brief-v1` |
+| `extract_brief_from_visual_content` | identity; attempt number 1–3 | as above, `VISUAL` | Same as text brief extraction; for scanned briefs | Same protections as text brief extraction |
+| `lookup_client_sow` | identity; bounded brand; optional SOW number | match flag, SOW reference, number, status | `CAMPAIGN_BRIEF` only; current tenant reference data; maximum two calls | Read-only lookup |
 
 ## Output restrictions
 

@@ -9,8 +9,14 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel
 
-# Claim-packet tools (ADR 0008). Kept in a separate import block so the invoice surface is easy to
-# audit on its own.
+# Brief tools (ADR 0009) and claim-packet tools (ADR 0008), imported separately so the
+# invoice surface is easy to audit on its own.
+from intake_orchestrator.agent.brief_contracts import (
+    LookupClientSowInput,
+    LookupClientSowOutput,
+    SegmentBriefPacketInput,
+    SegmentBriefPacketOutput,
+)
 from intake_orchestrator.agent.claim_contracts import (
     ExtractClaimInput,
     ExtractClaimOutput,
@@ -63,6 +69,10 @@ TOOL_SCHEMAS: dict[str, type[BaseModel]] = {
     "extract_claim_from_visual_content": ExtractClaimInput,
     "lookup_policy": LookupPolicyInput,
     "lookup_policy_vehicle": LookupPolicyVehicleInput,
+    "segment_brief_packet": SegmentBriefPacketInput,
+    "extract_brief_from_text": ExtractClaimInput,
+    "extract_brief_from_visual_content": ExtractClaimInput,
+    "lookup_client_sow": LookupClientSowInput,
 }
 
 TOOL_OUTPUT_SCHEMAS: dict[str, type[BaseModel]] = {
@@ -80,6 +90,10 @@ TOOL_OUTPUT_SCHEMAS: dict[str, type[BaseModel]] = {
     "extract_claim_from_visual_content": ExtractClaimOutput,
     "lookup_policy": LookupPolicyOutput,
     "lookup_policy_vehicle": LookupPolicyVehicleOutput,
+    "segment_brief_packet": SegmentBriefPacketOutput,
+    "extract_brief_from_text": ExtractClaimOutput,
+    "extract_brief_from_visual_content": ExtractClaimOutput,
+    "lookup_client_sow": LookupClientSowOutput,
 }
 
 INVOICE_TOOLS = frozenset(
@@ -98,15 +112,16 @@ EXTRACTION_TOOLS = (
 TOOL_DESCRIPTIONS = {
     "inspect_document": "Inspect tenant-scoped PDF metadata and bounded content characteristics.",
     "classify_document": (
-        "Classify the inspected document as AP_INVOICE, CLAIM_PACKET, UNSUPPORTED, or UNKNOWN."
+        "Classify the inspected document as AP_INVOICE, CLAIM_PACKET, CAMPAIGN_BRIEF, "
+        "UNSUPPORTED, or UNKNOWN."
     ),
     "extract_invoice_from_text": "Extract an AP invoice candidate from bounded PDF text.",
     "extract_invoice_from_visual_content": "Extract an AP invoice candidate from visual pages.",
     "lookup_supplier": "Look up a tenant-scoped supplier reference.",
     "lookup_purchase_order": "Look up a tenant-scoped purchase-order reference.",
     "validate_candidate": (
-        "Run the deterministic rules for the candidate's document type (invoice BR rules or "
-        "claim CR rules) for advisory agent feedback."
+        "Run the deterministic rules for the candidate's document type (invoice BR, claim CR, "
+        "or brief CB rules) for advisory agent feedback."
     ),
     "retry_extraction": "Authorize a bounded subsequent extraction attempt.",
     "submit_recommendation": "Submit the final non-authoritative recommendation.",
@@ -121,6 +136,19 @@ TOOL_DESCRIPTIONS = {
         "For a CLAIM_PACKET only: extract a claim candidate from page images (scanned packets)."
     ),
     "lookup_policy": "For a CLAIM_PACKET only: look up a tenant-scoped policy by number.",
+    "segment_brief_packet": (
+        "For a CAMPAIGN_BRIEF only: label every page as BRIEF, CORRESPONDENCE, MEDIA_PLAN, or "
+        "OTHER. Required before brief extraction."
+    ),
+    "extract_brief_from_text": (
+        "For a CAMPAIGN_BRIEF only: extract a work request with deliverables from bounded text."
+    ),
+    "extract_brief_from_visual_content": (
+        "For a CAMPAIGN_BRIEF only: extract a work request from page images (scanned briefs)."
+    ),
+    "lookup_client_sow": (
+        "For a CAMPAIGN_BRIEF only: find the tenant statement of work covering a brand."
+    ),
     "lookup_policy_vehicle": (
         "For a CLAIM_PACKET only: check whether a VIN is on a policy (EXACT, NEAR, or NONE)."
     ),

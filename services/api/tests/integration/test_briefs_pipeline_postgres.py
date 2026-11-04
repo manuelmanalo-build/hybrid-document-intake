@@ -1,0 +1,268 @@
+"""End-to-end campaign briefs through the durable graph with the stub provider (ADR 0009)."""
+
+import os
+from collections.abc import Iterator
+from datetime import UTC, datetime
+from pathlib import Path
+from uuid import UUID
+
+import pytest
+from alembic import command
+from alembic.config import Config
+from fastapi.testclient import TestClient
+from sqlalchemy import select, text
+from sqlalchemy.engine import make_url
+
+from intake_api.application.briefs_reference import (
+    load_brief_reference_data,
+    parse_lead_times,
+    parse_sow_brands,
+    parse_sows,
+)
+from intake_api.application.claims_reference import (
+    load_claims_reference_data,
+    parse_policies,
+    parse_vehicles,
+)
+from intake_api.domain.enums import (
+    ReviewQueue,
+    UserRole,
+)
+from intake_api.domain.models import (
+    AgentToolCall,
+    BriefIntakeKey,
+    ClaimRoutingDecision,
+    ConfidenceRun,
+    DocumentPageSegment,
+    ExtractionCandidate,
+    ExtractionFieldEvidence,
+    GraphRun,
+    ReviewTask,
+    Tenant,
+    User,
+)
+from intake_api.infrastructure.config import Settings
+from intake_api.main import create_app
+from intake_orchestrator.dispatcher import GraphResumeDispatcher, GraphRunDispatcher
+from intake_orchestrator.graph import ConfiguredResolutionAgent, open_graph_executor
+from intake_orchestrator.repository import (
+    GraphResumeRepository,
+    GraphRunRepository,
+    build_async_engine,
+    build_async_session_factory,
+)
+from intake_orchestrator.workflow import PostgresWorkflowBackend
+
+pytestmark = pytest.mark.integration
+CLAIMS = Path("test-data/claims")
+BRIEFS = Path("test-data/briefs")
+
+
+@pytest.fixture(scope="module")
+def database_url() -> str:
+    value = os.environ.get("TEST_DATABASE_URL")
+    if value is None:
+        pytest.skip("TEST_DATABASE_URL is required for the documented PostgreSQL integration suite")
+    if "test" not in (make_url(value).database or "").lower():
+        pytest.fail(
+            "TEST_DATABASE_URL must identify a disposable database whose name contains 'test'"
+        )
+    return value
+
+
+@pytest.fixture(scope="module", autouse=True)
+def migrated_database(database_url: str) -> Iterator[None]:
+    config = Config("services/api/alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.upgrade(config, "head")
+    yield
+    command.downgrade(config, "base")
+
+
+@pytest.fixture
+def api(database_url: str, tmp_path: Path) -> Iterator[tuple[TestClient, object]]:
+    settings = Settings(
+        database_url=database_url,
+        storage_root=tmp_path,
+        demo_submitter_token="integration-token",
+        demo_reviewer_token="integration-reviewer",
+        upload_max_bytes=500_000,
+    )
+    app = create_app(settings)
+    with app.state.session_factory() as session, session.begin():
+        session.add(Tenant(id=settings.bootstrap_tenant_id, name="Claims Integration Tenant"))
+        session.add(
+            User(
+                id=settings.bootstrap_user_id,
+                tenant_id=settings.bootstrap_tenant_id,
+                external_subject=settings.bootstrap_user_subject,
+                display_name="Integration Submitter",
+                role=UserRole.SUBMITTER,
+            )
+        )
+        session.flush()
+        load_brief_reference_data(
+            session,
+            tenant_id=settings.bootstrap_tenant_id,
+            sows=parse_sows((BRIEFS / "statements_of_work.csv").read_text()),
+            brands=parse_sow_brands((BRIEFS / "sow_brands.csv").read_text()),
+            lead_times=parse_lead_times((BRIEFS / "lead_times.csv").read_text()),
+            actor_id="integration-test",
+            correlation_id="brief-pipeline-reference",
+            source_sha256="0" * 64,
+        )
+        load_claims_reference_data(
+            session,
+            tenant_id=settings.bootstrap_tenant_id,
+            policies=parse_policies((CLAIMS / "policies.csv").read_text()),
+            vehicles=parse_vehicles((CLAIMS / "policy_vehicles.csv").read_text()),
+            actor_id="integration-test",
+            correlation_id="claims-pipeline-reference",
+            source_sha256="0" * 64,
+        )
+    with TestClient(app) as test_client:
+        yield test_client, app
+    with app.state.session_factory() as session, session.begin():
+        session.execute(
+            text(
+                "TRUNCATE audit_events, document_status_history, graph_resume_requests, "
+                "graph_run_requests, graph_runs, idempotency_records, document_versions, "
+                "documents, stored_objects, policies, statements_of_work, asset_lead_times, "
+                "users, tenants CASCADE"
+            )
+        )
+
+
+def _upload(client: TestClient, packet: str, key: str) -> UUID:
+    payload = (BRIEFS / "packets" / packet).read_bytes()
+    response = client.post(
+        "/api/v1/documents",
+        headers={"Authorization": "Bearer integration-token", "Idempotency-Key": key},
+        files={"file": (packet, payload, "application/pdf")},
+    )
+    assert response.status_code == 201, response.text
+    return UUID(response.json()["document_id"])
+
+
+async def _dispatch_runs(settings: Settings, count: int) -> None:
+    engine = build_async_engine(settings)
+    sessions = build_async_session_factory(engine)
+    try:
+        async with open_graph_executor(
+            settings,
+            initialize_checkpoint_schema=True,
+            workflow=PostgresWorkflowBackend(sessions),
+            resolution_agent=ConfiguredResolutionAgent(settings=settings, session_factory=sessions),
+        ) as executor:
+            dispatcher = GraphRunDispatcher(
+                repository=GraphRunRepository(sessions),
+                executor=executor,
+                settings=settings,
+                owner="claims-integration",
+            )
+            for _ in range(count):
+                assert await dispatcher.dispatch_one(_now()) is True
+    finally:
+        await engine.dispose()
+
+
+async def _dispatch_resume(settings: Settings) -> None:
+    engine = build_async_engine(settings)
+    sessions = build_async_session_factory(engine)
+    try:
+        async with open_graph_executor(
+            settings,
+            initialize_checkpoint_schema=False,
+            workflow=PostgresWorkflowBackend(sessions),
+            resolution_agent=ConfiguredResolutionAgent(settings=settings, session_factory=sessions),
+        ) as executor:
+            dispatcher = GraphResumeDispatcher(
+                repository=GraphResumeRepository(sessions),
+                executor=executor,
+                settings=settings,
+                owner="claims-resumer",
+            )
+            assert await dispatcher.dispatch_one(_now()) is True
+    finally:
+        await engine.dispose()
+
+
+def _graph_settings(app: object, database_url: str) -> Settings:
+    return Settings(
+        database_url=database_url,
+        checkpoint_database_url=database_url,
+        storage_root=app.state.settings.storage_root,  # type: ignore[attr-defined]
+    )
+
+
+def _queue_for(session: object, document_id: UUID) -> ReviewQueue:
+    decision = session.scalar(  # type: ignore[attr-defined]
+        select(ClaimRoutingDecision)
+        .where(ClaimRoutingDecision.document_id == document_id)
+        .order_by(ClaimRoutingDecision.created_at.desc())
+    )
+    assert decision is not None
+    assert decision.routing_version == "brief-routing-v1"
+    return decision.review_queue
+
+
+@pytest.mark.asyncio
+async def test_brief_is_segmented_extracted_routed_and_deduplicated(
+    api: tuple[TestClient, object], database_url: str
+) -> None:
+    client, app = api
+    first = _upload(client, "B01_brief.pdf", "briefs-b01")
+    copy = _upload(client, "B14_brief.pdf", "briefs-b14")
+    await _dispatch_runs(_graph_settings(app, database_url), 2)
+
+    with app.state.session_factory() as session:  # type: ignore[attr-defined]
+        candidate = session.scalar(
+            select(ExtractionCandidate).where(ExtractionCandidate.document_id == first)
+        )
+        assert candidate is not None
+        assert candidate.document_type == "CAMPAIGN_BRIEF"
+        assert len(candidate.candidate_data["deliverables"]) == 3
+        evidence = set(
+            session.scalars(
+                select(ExtractionFieldEvidence.field_name).where(
+                    ExtractionFieldEvidence.candidate_id == candidate.id
+                )
+            )
+        )
+        assert {"brand", "deliverables[0]", "deliverables[2]"} <= evidence
+        labels = list(
+            session.scalars(
+                select(DocumentPageSegment.segment_label).where(
+                    DocumentPageSegment.document_id == first
+                )
+            )
+        )
+        assert [label.value for label in labels] == ["BRIEF"]
+        tools = set(
+            session.scalars(
+                select(AgentToolCall.tool_name).where(AgentToolCall.document_id == first)
+            )
+        )
+        assert {"segment_brief_packet", "extract_brief_from_text"} <= tools
+        assert not any("claim" in name or "invoice" in name for name in tools)
+        # The stub extractor mirrors fixture B01: B01 is ready for planning and the email-only
+        # resubmission (B14) repeats its SOW, campaign, and launch and is caught as a duplicate.
+        assert _queue_for(session, first) == ReviewQueue.READY_FOR_PLANNING
+        assert _queue_for(session, copy) == ReviewQueue.DUPLICATE_REVIEW
+        confidence = session.scalar(
+            select(ConfidenceRun)
+            .join(GraphRun, GraphRun.id == ConfidenceRun.graph_run_id)
+            .where(GraphRun.document_id == first)
+        )
+        assert confidence is not None
+        assert confidence.algorithm_version == "decision-confidence-briefs-v1"
+        key = session.scalar(select(BriefIntakeKey).where(BriefIntakeKey.document_id == first))
+        assert key is not None
+        assert (key.sow_number, key.campaign_key) == ("SOW-1001", "winter warmers")
+        assert session.scalar(select(ReviewTask.status).where(ReviewTask.document_id == first)) == (
+            "OPEN"
+        )
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)

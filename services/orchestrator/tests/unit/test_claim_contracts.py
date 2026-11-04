@@ -170,4 +170,8 @@ def test_claim_tools_extend_the_registry_without_changing_the_invoice_prompt() -
         "extract_claim_from_visual_content",
         "lookup_policy",
         "lookup_policy_vehicle",
+        "segment_brief_packet",
+        "extract_brief_from_text",
+        "extract_brief_from_visual_content",
+        "lookup_client_sow",
     }

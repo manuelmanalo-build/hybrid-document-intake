@@ -47,6 +47,8 @@ class PackAgentSpec:
     human_action: str
     # Results the in-memory test backend returns for this pack's segmentation and lookup tools.
     deterministic_results: Mapping[str, Mapping[str, object]]
+    # Arguments the deterministic stub model sends when a decision plan calls a lookup tool.
+    stub_arguments: Mapping[str, Mapping[str, object]]
 
     @property
     def extraction_tools(self) -> frozenset[str]:

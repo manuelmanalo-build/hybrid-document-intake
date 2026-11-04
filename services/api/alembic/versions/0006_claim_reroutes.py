@@ -39,7 +39,10 @@ def downgrade() -> None:
             "Cannot downgrade 0006: re-route audit events exist; restore from backup instead"
         )
     op.drop_constraint("audit_event_type", "audit_events", type_="check")
-    previous = [member for member in AuditEventType if member not in ADDED_AUDIT_EVENTS]
+    later = {AuditEventType.BRIEF_REFERENCE_DATA_LOADED}
+    previous = [
+        member for member in AuditEventType if member not in ADDED_AUDIT_EVENTS | later
+    ]
     values = ", ".join(f"'{member.value}'" for member in previous)
     op.create_check_constraint("audit_event_type", "audit_events", f"event_type IN ({values})")
     Base.metadata.tables["claim_reroutes"].drop(bind=op.get_bind(), checkfirst=False)

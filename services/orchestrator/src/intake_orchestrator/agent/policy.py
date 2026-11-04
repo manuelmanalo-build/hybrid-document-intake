@@ -21,6 +21,7 @@ class AgentLimits:
     max_purchase_order_lookups: int = 2
     max_policy_lookups: int = 2
     max_vehicle_lookups: int = 2
+    max_sow_lookups: int = 2
 
 
 class AgentPolicyGuard:

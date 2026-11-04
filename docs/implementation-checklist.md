@@ -132,8 +132,9 @@ implementations.
 - [x] Refactor claims into the first domain pack with no behavior change (agent spec, tool effects,
   authoritative validation, confidence, rejection hook, API correction registry), with architecture
   tests that keep pack-specific branches out of shared modules.
-- [ ] Add the brief pack: contracts with a deliverables list, extraction, SOW and lead-time reference
-  tables, `lookup_client_sow`, rules, routing, and confidence.
+- [x] Add the brief pack: contracts with a deliverables list, extraction, SOW and lead-time reference
+  tables (migration 0007, audited loader, Compose job), `lookup_client_sow`, rules, routing, and
+  confidence; keyword classification of briefs in stub mode.
 - [ ] Generalize the queue and workbench API across packs.
 - [ ] Make the Angular intake, queue, and workbench screens pack-driven.
 - [ ] Emit a work-request outbox payload with one task per deliverable.
