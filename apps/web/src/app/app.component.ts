@@ -20,7 +20,12 @@ import {
   ReviewTask,
   SessionIdentity,
 } from './intake-api.service';
+import { ClaimWorkbenchComponent } from './claims/claim-workbench.component';
+import { ClaimsIntakeComponent } from './claims/claims-intake.component';
+import { ClaimsQueueComponent } from './claims/claims-queue.component';
 import { StatusBadgeComponent } from './status-badge.component';
+
+type View = 'intake' | 'documents' | 'review' | 'claims-intake' | 'claims-queue' | 'claim';
 
 interface EditableField {
   readonly name: string;
@@ -35,7 +40,12 @@ interface EditableField {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [StatusBadgeComponent],
+  imports: [
+    StatusBadgeComponent,
+    ClaimsIntakeComponent,
+    ClaimsQueueComponent,
+    ClaimWorkbenchComponent,
+  ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,7 +55,8 @@ export class AppComponent implements OnDestroy, OnInit {
   private readonly sanitizer = inject(DomSanitizer);
   private pdfObjectUrl: string | null = null;
 
-  protected readonly activeView = signal<'intake' | 'documents' | 'review'>('intake');
+  protected readonly activeView = signal<View>('intake');
+  protected readonly selectedClaimTask = signal<string | null>(null);
   protected readonly selectedFile = signal<File | null>(null);
   protected readonly idempotencyKey = signal(
     localStorage.getItem('document-intake-idempotency-key') ?? crypto.randomUUID(),
@@ -189,9 +200,13 @@ export class AppComponent implements OnDestroy, OnInit {
     });
   }
 
-  protected navigate(view: 'intake' | 'documents' | 'review'): void {
+  protected navigate(view: View): void {
     this.activeView.set(view);
     this.clearMessages();
+    if (view.startsWith('claim')) {
+      this.selectedDetail.set(null);
+      this.selectedTask.set(null);
+    }
     if (view === 'documents') this.refreshDocuments();
     if (view === 'review') this.refreshReviewQueue();
   }
@@ -360,6 +375,16 @@ export class AppComponent implements OnDestroy, OnInit {
   private clearMessages(): void {
     this.error.set(null);
     this.notice.set(null);
+  }
+
+  protected openClaim(taskId: string): void {
+    this.selectedClaimTask.set(taskId);
+    this.navigate('claim');
+  }
+
+  protected claimCompleted(message: string): void {
+    this.navigate('claims-queue');
+    this.notice.set(message);
   }
 
   private establishIdentity(identity: SessionIdentity): void {

@@ -1,0 +1,303 @@
+<section class="bench" aria-labelledby="claim-title">
+  <div class="topline">
+    <button type="button" class="claims-button" (click)="back.emit()">← Back to queues</button>
+    @if (notice(); as message) {
+      <p class="notice" role="status">{{ message }}</p>
+    }
+  </div>
+
+  @if (error(); as message) {
+    <p class="claims-panel error" role="alert">{{ message }}</p>
+  }
+
+  @if (item(); as claim) {
+    <div class="title-row">
+      <div>
+        <h2 id="claim-title">
+          {{ claim.named_insured ?? 'Unknown insured' }} ·
+          {{ claim.vehicle ?? 'Vehicle not extracted' }}
+        </h2>
+        <p class="meta claims-muted">
+          <span
+            >Packet <span class="claims-mono">{{ claim.original_filename ?? '—' }}</span></span
+          >
+          <span
+            >Policy <span class="claims-mono">{{ claim.policy_number ?? '—' }}</span></span
+          >
+          <span>Review cycle {{ bench()?.review_cycle }}</span>
+          <span>{{
+            claim.claimed_by_user_id === null
+              ? 'Unassigned'
+              : claimedByMe()
+                ? 'Assigned to you'
+                : 'Assigned to another reviewer'
+          }}</span>
+        </p>
+      </div>
+      <div class="actions">
+        @if (canReview() && unclaimed()) {
+          <button
+            type="button"
+            class="claims-button primary"
+            (click)="takeTask()"
+            [disabled]="busy()"
+          >
+            Claim this task
+          </button>
+        }
+        @if (claimedByMe()) {
+          <button type="button" class="claims-button" (click)="release()" [disabled]="busy()">
+            Release
+          </button>
+        }
+      </div>
+    </div>
+
+    <section class="route" aria-labelledby="route-title">
+      <div>
+        <span class="eyebrow">Routed to</span>
+        <h3 id="route-title">{{ queueLabel() }}</h3>
+        <span class="claims-muted small">
+          @if (claim.route.routed_by === 'REVIEWER') {
+            Re-routed by a reviewer
+          } @else {
+            {{ claim.route.routing_version }} ·
+            {{ claim.route.reason_code.replaceAll('_', ' ').toLowerCase() }}
+          }
+        </span>
+      </div>
+      <div class="chips">
+        @for (flag of flags(); track flag.label) {
+          <span
+            class="claims-chip"
+            [class.attention]="flag.tone === 'attention'"
+            [class.info]="flag.tone === 'info'"
+          >
+            {{ flag.label }}
+          </span>
+        } @empty {
+          <span class="claims-chip">No flags: clean and within the fast-track limit</span>
+        }
+      </div>
+    </section>
+
+    <div class="columns">
+      <section class="claims-panel packet" aria-labelledby="packet-title">
+        <div class="panel-head">
+          <h3 id="packet-title">Packet · {{ pages().length }} pages</h3>
+          <span class="claims-muted small">Labels from page segmentation</span>
+        </div>
+        <div class="page-tabs" role="group" aria-label="Pages">
+          @for (entry of pages(); track entry.number) {
+            <button
+              type="button"
+              class="claims-pill"
+              [attr.aria-pressed]="page() === entry.number"
+              (click)="showPage(entry.number)"
+            >
+              <span class="claims-mono">p.{{ entry.number }}</span> {{ entry.label }}
+            </button>
+          }
+        </div>
+        @if (pdfUrl(); as url) {
+          <iframe [src]="url" title="Claim packet PDF, page {{ page() }}"></iframe>
+        } @else {
+          <p class="claims-muted">Loading the packet…</p>
+        }
+      </section>
+
+      <div class="side">
+        <section class="claims-panel" aria-labelledby="rules-title">
+          <div class="panel-head">
+            <h3 id="rules-title">Why this queue</h3>
+            <span class="claims-muted small">
+              {{ attentionRules().length }} need attention · {{ passedRules().length }} passed
+            </span>
+          </div>
+          @for (rule of attentionRules(); track rule.rule_id) {
+            <div class="rule" [class.fail]="rule.outcome === 'FAIL'">
+              <span class="claims-mono rule-id">{{ rule.rule_id }}</span>
+              <span>
+                <strong
+                  >{{ rule.outcome === 'FAIL' ? 'Failed' : 'Needs review' }}:
+                  {{ rule.name }}</strong
+                >
+                @if (rule.reason_code) {
+                  <span class="small claims-muted block">{{ rule.reason_code }}</span>
+                }
+              </span>
+            </div>
+          }
+          <details>
+            <summary>Show {{ passedRules().length }} passed rules</summary>
+            <ul class="passed">
+              @for (rule of passedRules(); track rule.rule_id) {
+                <li>
+                  <span class="claims-mono">{{ rule.rule_id }}</span> {{ rule.name }}
+                </li>
+              }
+            </ul>
+          </details>
+        </section>
+
+        <section class="claims-panel" aria-labelledby="fields-title">
+          <div class="panel-head">
+            <h3 id="fields-title">Extracted fields</h3>
+            <span class="claims-muted small">Click a page to see the source</span>
+          </div>
+          @for (group of groups(); track group.title) {
+            <h4>{{ group.title }}</h4>
+            @for (row of group.rows; track row.name) {
+              <div class="field" [class.conflict]="row.conflict">
+                <span class="claims-muted">{{ row.label }}</span>
+                @if (editing() === row.name) {
+                  @if (row.kind === 'boolean') {
+                    <select
+                      [attr.aria-label]="'New value for ' + row.label"
+                      [value]="draftFor(row.name)"
+                      (change)="setDraft(row.name, $event)"
+                    >
+                      <option value="true">Yes</option>
+                      <option value="false">No</option>
+                    </select>
+                  } @else if (row.kind === 'coverage') {
+                    <select
+                      [attr.aria-label]="'New value for ' + row.label"
+                      [value]="draftFor(row.name)"
+                      (change)="setDraft(row.name, $event)"
+                    >
+                      <option value="COLLISION">Collision</option>
+                      <option value="COMPREHENSIVE">Comprehensive</option>
+                    </select>
+                  } @else {
+                    <input
+                      [attr.aria-label]="'New value for ' + row.label"
+                      [value]="draftFor(row.name)"
+                      (input)="setDraft(row.name, $event)"
+                    />
+                  }
+                } @else {
+                  <span class="value" [title]="row.evidence ?? ''">
+                    {{ row.display }}
+                    @if (row.reviewed) {
+                      <span class="claims-chip info">Corrected</span>
+                    }
+                    @if (row.name in drafts()) {
+                      <span class="claims-chip attention"
+                        >Pending: {{ draftFor(row.name) || '—' }}</span
+                      >
+                    }
+                  </span>
+                }
+                <span class="claims-muted small claims-mono">{{ row.confidence ?? '' }}</span>
+                <button
+                  type="button"
+                  class="mini"
+                  [disabled]="row.page === null"
+                  [attr.aria-label]="'Show source page for ' + row.label"
+                  (click)="showPage(row.page)"
+                >
+                  p.{{ row.page ?? '–' }}
+                </button>
+                @if (row.name in drafts()) {
+                  <button type="button" class="mini" (click)="discard(row.name)">Undo</button>
+                } @else {
+                  <button
+                    type="button"
+                    class="mini"
+                    [disabled]="!claimedByMe()"
+                    [attr.aria-label]="'Correct ' + row.label"
+                    (click)="startEdit(row)"
+                  >
+                    Edit
+                  </button>
+                }
+              </div>
+            }
+          }
+        </section>
+
+        <section class="claims-panel decide" aria-labelledby="decide-title">
+          <h3 id="decide-title">Decision</h3>
+          @if (!claimedByMe()) {
+            <p class="claims-muted small">Claim this task to edit fields or record a decision.</p>
+          }
+          <label for="decision-reason">Reason (recorded in the audit trail)</label>
+          <textarea
+            id="decision-reason"
+            rows="2"
+            [value]="decisionReason()"
+            (input)="setText('decision', $event)"
+            [disabled]="!claimedByMe()"
+          ></textarea>
+          <div class="actions">
+            <button
+              type="button"
+              class="claims-button"
+              (click)="decide('REQUEST_CORRECTION')"
+              [disabled]="busy() || !claimedByMe()"
+            >
+              Submit corrections ({{ corrections().length }})
+            </button>
+            @if (canApprove()) {
+              <button
+                type="button"
+                class="claims-button danger"
+                (click)="decide('REJECT')"
+                [disabled]="busy() || !claimedByMe()"
+              >
+                Reject
+              </button>
+              <button
+                type="button"
+                class="claims-button primary"
+                (click)="decide('APPROVE')"
+                [disabled]="busy() || !claimedByMe()"
+              >
+                Approve intake
+              </button>
+            }
+          </div>
+        </section>
+
+        @if (canReview() && (unclaimed() || claimedByMe())) {
+          <section class="claims-panel decide" aria-labelledby="reroute-title">
+            <h3 id="reroute-title">Re-route</h3>
+            <label for="reroute-queue">Move to queue</label>
+            <select id="reroute-queue" [value]="rerouteQueue()" (change)="setRerouteQueue($event)">
+              <option value="">Choose a queue</option>
+              @for (target of rerouteTargets(); track target.value) {
+                <option [value]="target.value">{{ target.label }}</option>
+              }
+            </select>
+            <label for="reroute-reason">Reason</label>
+            <textarea
+              id="reroute-reason"
+              rows="2"
+              [value]="rerouteReason()"
+              (input)="setText('reroute', $event)"
+            ></textarea>
+            <div class="actions">
+              <button type="button" class="claims-button" (click)="reroute()" [disabled]="busy()">
+                Re-route claim
+              </button>
+            </div>
+          </section>
+        }
+
+        @if ((bench()?.reroutes ?? []).length > 0) {
+          <section class="claims-panel" aria-labelledby="history-title">
+            <h3 id="history-title">Re-route history</h3>
+            <ul class="passed">
+              @for (entry of bench()?.reroutes ?? []; track entry.created_at) {
+                <li>{{ entry.from_queue }} → {{ entry.to_queue }}: {{ entry.reason }}</li>
+              }
+            </ul>
+          </section>
+        }
+      </div>
+    </div>
+  } @else if (busy()) {
+    <p class="claims-muted">Loading claim…</p>
+  }
+</section>

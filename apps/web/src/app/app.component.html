@@ -70,6 +70,24 @@
       Review queue <span class="count">{{ reviewTasks().length }}</span>
     </button>
   }
+  <button
+    type="button"
+    [class.active]="activeView() === 'claims-intake'"
+    [attr.aria-current]="activeView() === 'claims-intake' ? 'page' : null"
+    (click)="navigate('claims-intake')"
+  >
+    Claims intake
+  </button>
+  @if (canReview()) {
+    <button
+      type="button"
+      [class.active]="activeView() === 'claims-queue' || activeView() === 'claim'"
+      [attr.aria-current]="activeView() === 'claims-queue' ? 'page' : null"
+      (click)="navigate('claims-queue')"
+    >
+      Claim queues
+    </button>
+  }
 </nav>
 
 <div class="live-region" aria-live="polite" aria-atomic="true">
@@ -85,6 +103,28 @@
 </div>
 
 <main id="main-content">
+  @if (activeView() === 'claims-intake') {
+    <app-claims-intake
+      [token]="accessToken()"
+      [canSubmit]="canSubmit()"
+      (openQueues)="navigate('claims-queue')"
+    />
+  }
+  @if (activeView() === 'claims-queue') {
+    <app-claims-queue [token]="accessToken()" (openClaim)="openClaim($event)" />
+  }
+  @if (activeView() === 'claim') {
+    @if (selectedClaimTask(); as taskId) {
+      <app-claim-workbench
+        [taskId]="taskId"
+        [token]="accessToken()"
+        [role]="identity()?.role ?? null"
+        [userId]="identity()?.user_id ?? null"
+        (back)="navigate('claims-queue')"
+        (completed)="claimCompleted($event)"
+      />
+    }
+  }
   @if (activeView() === 'intake') {
     <section class="panel intro" aria-labelledby="upload-title">
       <div>

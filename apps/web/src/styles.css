@@ -11,3 +11,112 @@ button,
 input {
   font: inherit;
 }
+
+/* Claims workspace (ADR 0008): shared tokens and primitives used by the claims components. */
+:root {
+  --claims-ink: #16202b;
+  --claims-ink-2: #384252;
+  --claims-muted: #4a5563;
+  --claims-faint: #5f6b7a;
+  --claims-line: #dce1e8;
+  --claims-line-soft: #edf0f4;
+  --claims-surface: #ffffff;
+  --claims-ground: #f5f6f8;
+  --claims-accent: #1f4fa3;
+  --claims-accent-soft: #e6eefa;
+  --claims-attention: #8a4300;
+  --claims-attention-soft: #fcebda;
+  --claims-attention-line: #c26a12;
+  --claims-danger: #8a2a12;
+  --claims-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+.claims-panel {
+  background: var(--claims-surface);
+  border: 1px solid var(--claims-line);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.claims-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--claims-line-soft);
+  color: var(--claims-ink-2);
+}
+.claims-chip.attention {
+  background: var(--claims-attention-soft);
+  color: var(--claims-attention);
+}
+.claims-chip.info {
+  background: var(--claims-accent-soft);
+  color: var(--claims-accent);
+}
+.claims-chip.strong {
+  background: var(--claims-attention);
+  color: #fff;
+  font-weight: 600;
+}
+.claims-button {
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 1px solid #c7ced8;
+  border-radius: 6px;
+  background: var(--claims-surface);
+  color: var(--claims-ink);
+  font-weight: 500;
+  cursor: pointer;
+}
+.claims-button.primary {
+  border-color: var(--claims-accent);
+  background: var(--claims-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.claims-button.danger {
+  color: var(--claims-danger);
+}
+.claims-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.claims-button:focus-visible,
+.claims-pill:focus-visible {
+  outline: 3px solid var(--claims-accent);
+  outline-offset: 2px;
+}
+.claims-pill {
+  min-height: 44px;
+  padding: 0 0.9rem;
+  border: 1px solid #c7ced8;
+  border-radius: 22px;
+  background: var(--claims-surface);
+  color: var(--claims-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.claims-pill[aria-pressed='true'] {
+  border-color: var(--claims-ink);
+  background: var(--claims-ink);
+  color: #fff;
+  font-weight: 500;
+}
+.claims-mono {
+  font-family: var(--claims-mono);
+}
+.claims-muted {
+  color: var(--claims-muted);
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
