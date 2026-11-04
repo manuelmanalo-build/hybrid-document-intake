@@ -118,7 +118,9 @@ implementations.
   a rejection releases the claim's duplicate key.
 - [x] Expose claim queues, the workbench read model, service levels, typed claim corrections, and
   audited reviewer re-routes (migration 0006) through `/api/v1/claims`.
-- [ ] Add the Angular claim review form and queue filters.
+- [x] Add the Angular claims screens: batch intake with per-file pipeline progress, work queues
+  with service levels and queue filters, and the claim workbench (packet viewer, rule
+  explanations, typed field corrections, decisions, re-route).
 - [ ] Score claims against ground truth with the zero-false-fast-track gate in CI.
 - [ ] Port the claims fixture generator into `scripts/` under Ruff rules.
 

@@ -1,0 +1,120 @@
+<section class="queue" aria-labelledby="claims-queue-title">
+  <div class="heading">
+    <div>
+      <h2 id="claims-queue-title">Claim work queues</h2>
+      <p class="claims-muted">
+        Personal auto FNOL · {{ rows().length }} of {{ view()?.items?.length ?? 0 }} open claims
+      </p>
+    </div>
+    <button type="button" class="claims-button" (click)="refresh()" [disabled]="loading()">
+      {{ loading() ? 'Refreshing…' : 'Refresh' }}
+    </button>
+  </div>
+
+  @if (error(); as message) {
+    <p class="claims-panel error" role="alert">{{ message }}</p>
+  }
+
+  <div class="levels">
+    <div class="level overdue">
+      <span class="claims-mono">{{ levels().overdue }}</span> past service level
+    </div>
+    <div class="level soon">
+      <span class="claims-mono">{{ levels().dueSoon }}</span> due soon
+    </div>
+    <div class="level ok">
+      <span class="claims-mono">{{ levels().onTrack }}</span> on track
+    </div>
+    <span class="claims-muted sort-note">Sorted by service-level urgency</span>
+  </div>
+
+  <div class="tabs" role="group" aria-label="Filter by queue">
+    @for (tab of tabs(); track tab.key) {
+      <button
+        type="button"
+        class="claims-pill"
+        [attr.aria-pressed]="active() === tab.key"
+        (click)="pick(tab.key)"
+      >
+        {{ tab.label }} <span class="claims-mono">{{ tab.count }}</span>
+      </button>
+    }
+  </div>
+
+  <div class="table-wrap claims-panel">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Claim</th>
+          <th scope="col">Insured and vehicle</th>
+          <th scope="col">Loss</th>
+          <th scope="col" class="number">Estimate</th>
+          <th scope="col">Queue</th>
+          <th scope="col">Age</th>
+          <th scope="col">Service level</th>
+          <th scope="col">Why it is here</th>
+          <th scope="col"><span class="visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of rows(); track item.review_task_id) {
+          <tr>
+            <td>
+              <span class="claims-mono strong">{{ item.original_filename ?? 'Claim packet' }}</span>
+              <span class="sub claims-mono">{{ item.policy_number ?? 'No policy number' }}</span>
+            </td>
+            <td>
+              <span class="strong">{{ item.named_insured ?? 'Unknown insured' }}</span>
+              <span class="sub">{{ item.vehicle ?? 'Vehicle not extracted' }}</span>
+            </td>
+            <td class="nowrap">
+              {{ date(item.loss_date) }}
+              <span class="sub">{{ item.cause_of_loss ?? '' }}</span>
+            </td>
+            <td class="number claims-mono">{{ money(item.estimate_total) }}</td>
+            <td class="nowrap strong">
+              {{ queueLabel(item.route.review_queue) }}
+              @if (item.route.routed_by === 'REVIEWER') {
+                <span class="sub">Re-routed by reviewer</span>
+              }
+            </td>
+            <td class="claims-mono nowrap">{{ duration(item.age_minutes) }}</td>
+            <td class="nowrap">
+              <span [class]="levelClass(item)">{{ levelLabel(item) }}</span>
+              <span class="sub">{{ levelDetail(item) }}</span>
+            </td>
+            <td>
+              <div class="chips">
+                @for (code of item.route.flags; track code) {
+                  <span
+                    class="claims-chip"
+                    [class.attention]="flag(code).tone === 'attention'"
+                    [class.info]="flag(code).tone === 'info'"
+                    >{{ flag(code).label }}</span
+                  >
+                } @empty {
+                  <span class="claims-chip">Clean · within limit</span>
+                }
+              </div>
+            </td>
+            <td class="actions">
+              <button
+                type="button"
+                class="claims-button"
+                (click)="openClaim.emit(item.review_task_id)"
+              >
+                Open
+              </button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="9" class="empty">
+              {{ loading() ? 'Loading claims…' : 'No open claims in this queue.' }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>
