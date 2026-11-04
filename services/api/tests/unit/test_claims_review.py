@@ -2,11 +2,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from intake_api.application.claim_corrections import normalize_claim_correction
 from intake_api.application.claims_review import service_level, target_minutes
 from intake_api.application.problems import InvalidUpload
-from intake_api.application.review import (
-    _normalize_claim_value,  # pyright: ignore[reportPrivateUsage]
-)
 from intake_api.domain.enums import ReviewQueue
 from intake_api.infrastructure.config import Settings
 
@@ -71,7 +69,7 @@ def test_targets_come_from_configuration_per_queue() -> None:
     ],
 )
 def test_claim_corrections_are_typed(field: str, raw: str, expected: object) -> None:
-    assert _normalize_claim_value(field, raw) == expected
+    assert normalize_claim_correction(field, raw) == expected
 
 
 @pytest.mark.parametrize(
@@ -88,4 +86,4 @@ def test_claim_corrections_are_typed(field: str, raw: str, expected: object) -> 
 )
 def test_invalid_claim_corrections_are_rejected(field: str, raw: str) -> None:
     with pytest.raises(InvalidUpload):
-        _normalize_claim_value(field, raw)
+        normalize_claim_correction(field, raw)

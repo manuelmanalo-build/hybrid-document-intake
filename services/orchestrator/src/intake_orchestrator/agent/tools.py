@@ -39,6 +39,7 @@ from intake_orchestrator.agent.contracts import (
     ValidateCandidateInput,
     ValidateCandidateOutput,
 )
+from intake_orchestrator.packs import pack_extraction_tools
 
 
 class ToolBackend(Protocol):
@@ -89,22 +90,9 @@ INVOICE_TOOLS = frozenset(
         "lookup_purchase_order",
     }
 )
-CLAIM_TOOLS = frozenset(
-    {
-        "segment_claim_packet",
-        "extract_claim_from_text",
-        "extract_claim_from_visual_content",
-        "lookup_policy",
-        "lookup_policy_vehicle",
-    }
-)
-EXTRACTION_TOOLS = frozenset(
-    {
-        "extract_invoice_from_text",
-        "extract_invoice_from_visual_content",
-        "extract_claim_from_text",
-        "extract_claim_from_visual_content",
-    }
+EXTRACTION_TOOLS = (
+    frozenset({"extract_invoice_from_text", "extract_invoice_from_visual_content"})
+    | pack_extraction_tools()
 )
 
 TOOL_DESCRIPTIONS = {

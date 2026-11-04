@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 from uuid import UUID
@@ -7,12 +8,9 @@ from uuid import UUID
 from pydantic import BaseModel, ValidationError
 
 from intake_orchestrator.agent.errors import PolicyViolation
-from intake_orchestrator.agent.tools import (
-    CLAIM_TOOLS,
-    EXTRACTION_TOOLS,
-    INVOICE_TOOLS,
-    TOOL_SCHEMAS,
-)
+from intake_orchestrator.agent.tools import EXTRACTION_TOOLS, INVOICE_TOOLS, TOOL_SCHEMAS
+from intake_orchestrator.packs import PACKS, pack_for_tool
+from intake_orchestrator.packs.base import PackAgentSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,8 +42,7 @@ class AgentPolicyGuard:
         tools_used: list[str],
         extraction_candidate_id: str | None,
         document_type: str | None = None,
-        policy_lookups: int = 0,
-        vehicle_lookups: int = 0,
+        lookup_counts: Mapping[str, int] | None = None,
     ) -> BaseModel:
         schema = TOOL_SCHEMAS.get(tool_name)
         if schema is None:
@@ -64,23 +61,19 @@ class AgentPolicyGuard:
             raise PolicyViolation("Tool agent-run identity does not match the active run")
         self._reject_unauthorized_content(values)
 
-        # Document-type scoping is enforced here, not in the prompt (ADR 0008): invoice tools
-        # need an AP_INVOICE classification and claim tools need a CLAIM_PACKET classification.
+        # Document-type scoping is enforced here, not in the prompt (ADRs 0008 and 0009): invoice
+        # tools need an AP_INVOICE classification and each pack's tools need its document type.
         if tool_name in INVOICE_TOOLS and document_type != "AP_INVOICE":
             raise PolicyViolation("Invoice tools require an AP_INVOICE classification")
-        if tool_name in CLAIM_TOOLS and document_type != "CLAIM_PACKET":
-            raise PolicyViolation("Claim tools require a CLAIM_PACKET classification")
-        if tool_name == "segment_claim_packet" and "segment_claim_packet" in tools_used:
-            raise PolicyViolation("A claim packet is segmented once per agent run")
-        if tool_name.startswith("extract_claim_from_") and "segment_claim_packet" not in tools_used:
-            raise PolicyViolation("Claim extraction requires page segmentation first")
-        if tool_name == "lookup_policy" and policy_lookups >= self.limits.max_policy_lookups:
-            raise PolicyViolation("Policy-lookup limit reached")
-        if (
-            tool_name == "lookup_policy_vehicle"
-            and vehicle_lookups >= self.limits.max_vehicle_lookups
-        ):
-            raise PolicyViolation("Policy-vehicle-lookup limit reached")
+        pack = pack_for_tool(tool_name)
+        if pack is not None:
+            self._validate_pack_tool(
+                pack.agent,
+                tool_name,
+                document_type=document_type,
+                tools_used=tools_used,
+                lookup_counts=lookup_counts or {},
+            )
         if tool_name in EXTRACTION_TOOLS:
             if extraction_attempts >= self.limits.max_extraction_attempts:
                 raise PolicyViolation("Extraction-attempt limit reached")
@@ -103,7 +96,7 @@ class AgentPolicyGuard:
             if not prerequisites.issubset(tools_used):
                 raise PolicyViolation("Recommendation prerequisites are incomplete")
             requested_candidate = values.get("extraction_candidate_id")
-            if values.get("document_type") in {"AP_INVOICE", "CLAIM_PACKET"} and (
+            if values.get("document_type") in {"AP_INVOICE", *PACKS} and (
                 "validate_candidate" not in tools_used or extraction_candidate_id is None
             ):
                 raise PolicyViolation("Recommendation prerequisites are incomplete for the type")
@@ -114,6 +107,26 @@ class AgentPolicyGuard:
             if values.get("tools_used") != tools_used:
                 raise PolicyViolation("Recommendation tool summary does not match agent state")
         return parsed
+
+    def _validate_pack_tool(
+        self,
+        spec: PackAgentSpec,
+        tool_name: str,
+        *,
+        document_type: str | None,
+        tools_used: list[str],
+        lookup_counts: Mapping[str, int],
+    ) -> None:
+        if document_type != spec.document_type:
+            raise PolicyViolation(f"This tool requires a {spec.document_type} classification")
+        if tool_name == spec.segmentation_tool and spec.segmentation_tool in tools_used:
+            raise PolicyViolation("A packet is segmented once per agent run")
+        if tool_name in spec.extraction_tools and spec.segmentation_tool not in tools_used:
+            raise PolicyViolation("Packet extraction requires page segmentation first")
+        for lookup in spec.lookups:
+            limit = int(getattr(self.limits, lookup.limit_attribute))
+            if tool_name == lookup.tool and lookup_counts.get(lookup.state_key, 0) >= limit:
+                raise PolicyViolation(lookup.message)
 
     @classmethod
     def _reject_unauthorized_content(cls, value: object) -> None:

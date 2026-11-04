@@ -169,3 +169,15 @@ For every prompt:
 
 The ordinary test suite uses a deterministic stub model and no live model, Zapier, or other
 external service. Provider contract tests are explicit opt-in tests.
+
+## Domain packs
+
+Document-type-specific behavior lives in a domain pack (`intake_orchestrator/packs/<type>.py`,
+registered in `intake_orchestrator/packs/__init__.py`): the pack's agent spec (segmentation,
+extraction, and lookup tools with their limits), tool effects, advisory and authoritative
+validation, routing, confidence inputs, and rejection hook. API-side per-type behavior (typed
+corrections) is registered in `intake_api/application/document_types.py`. Shared modules (agent
+graph, policy guard, backends, parent workflow) dispatch on the registered pack and must not branch
+on a pack's document type or tool names; `test_domain_packs.py` enforces this. New pack tools are
+still added explicitly to the immutable tool registry and catalog.
+
