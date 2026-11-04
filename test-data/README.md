@@ -17,3 +17,6 @@ uv run python scripts/generate_evaluation_fixtures.py
 
 `claims/` holds the 20-packet synthetic claims evaluation set for the claims slice (ADR 0008); see
 `claims/README.md`.
+
+`briefs/` holds the 20-packet synthetic agency campaign-brief set (ADR 0009); see
+`briefs/README.md`.

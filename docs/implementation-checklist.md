@@ -124,3 +124,16 @@ implementations.
 - [ ] Score claims against ground truth with the zero-false-fast-track gate in CI.
 - [ ] Port the claims fixture generator into `scripts/` under Ruff rules.
 
+## Campaign brief slice (ADR 0009, agency)
+
+- [x] Record the brief decision, domain packs, brief scope, CB-001 through CB-014, and
+  `brief-routing-v1`.
+- [x] Add the 20-packet synthetic brief evaluation set, its in-repo generator, and integrity tests.
+- [ ] Refactor claims into the first domain pack with no behavior change.
+- [ ] Add the brief pack: contracts with a deliverables list, extraction, SOW and lead-time reference
+  tables, `lookup_client_sow`, rules, routing, and confidence.
+- [ ] Generalize the queue and workbench API across packs.
+- [ ] Make the Angular intake, queue, and workbench screens pack-driven.
+- [ ] Emit a work-request outbox payload with one task per deliverable.
+- [ ] Draft clarifying questions for `NEEDS_CLIENT_INFO` briefs for a reviewer to edit and send.
+

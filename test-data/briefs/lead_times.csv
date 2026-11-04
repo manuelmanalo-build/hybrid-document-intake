@@ -1,0 +1,13 @@
+asset_type,label,service,min_business_days
+SOCIAL_STATIC,Social static post,SOCIAL,5
+SOCIAL_VIDEO,Social video (15s or under),SOCIAL,10
+DISPLAY_SET,Display banner set,DISPLAY,7
+VIDEO_30,Video :30,VIDEO,25
+VIDEO_15,Video :15,VIDEO,20
+EMAIL,Email,EMAIL,5
+LANDING_PAGE,Landing page,WEB,15
+OOH_BOARD,Out-of-home board,OOH,20
+AUDIO_30,Audio spot :30,AUDIO,10
+SEARCH_ADS,Search ad set,PAID_SEARCH,5
+INFLUENCER_KIT,Influencer brief and kit,INFLUENCER,10
+PRINT_AD,Print ad,PRINT,15
