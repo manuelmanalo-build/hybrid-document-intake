@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, Protocol, cast
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -37,6 +37,7 @@ from intake_api.domain.models import (
 from intake_orchestrator.agent.classification import DocumentClassifier, KeywordDocumentClassifier
 from intake_orchestrator.agent.contracts import (
     APInvoiceCandidate,
+    ExtractedField,
     ExtractInvoiceInput,
     LookupPurchaseOrderInput,
     LookupSupplierInput,
@@ -885,8 +886,13 @@ class PostgresAgentBackend:
         )
         session.add(extraction_candidate)
         await session.flush([extraction_candidate])
-        for field_name in type(candidate).model_fields:
-            field = getattr(candidate, field_name)
+        scalars = {
+            name: cast(ExtractedField[object], getattr(candidate, name))
+            for name in type(candidate).model_fields
+            if not isinstance(getattr(candidate, name), list)
+        }
+        provenance = next(iter(scalars.values()))
+        for field_name, field in scalars.items():
             session.add(
                 ExtractionFieldEvidence(
                     id=stable_id("field-evidence", f"{candidate_id}:{field_name}"),
@@ -903,6 +909,29 @@ class PostgresAgentBackend:
                     prompt_version=field.prompt_version,
                 )
             )
+        # List fields (brief deliverables) get one evidence row per item, named field[index].
+        for list_name in type(candidate).model_fields:
+            items = getattr(candidate, list_name)
+            if not isinstance(items, list):
+                continue
+            for index, item in enumerate(cast(list[ListEvidence], items)):
+                item_name = f"{list_name}[{index}]"
+                session.add(
+                    ExtractionFieldEvidence(
+                        id=stable_id("field-evidence", f"{candidate_id}:{item_name}"),
+                        tenant_id=tenant_id,
+                        candidate_id=candidate_id,
+                        field_name=item_name[:64],
+                        confidence=item.confidence,
+                        source_page=item.source_page,
+                        evidence_excerpt=item.evidence_excerpt[:500],
+                        extraction_strategy=provenance.extraction_strategy,
+                        provider=provenance.provider,
+                        model=provenance.model,
+                        schema_version=provenance.schema_version,
+                        prompt_version=provenance.prompt_version,
+                    )
+                )
         session.add(
             _audit(
                 event_id=stable_id("extraction-completed", operation_key),
@@ -1096,3 +1125,11 @@ async def _add_audit_if_absent(session: AsyncSession, event: AuditEvent) -> None
 
 def _strip_page_markers(text: str) -> str:
     return "\n".join(line for line in text.splitlines() if not line.startswith("[page "))
+
+
+class ListEvidence(Protocol):
+    """Evidence attributes carried by each item of a candidate list field."""
+
+    confidence: Decimal
+    source_page: int | None
+    evidence_excerpt: str

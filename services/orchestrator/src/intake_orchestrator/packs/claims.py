@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from intake_api.domain.enums import (
     AuditEventType,
     ClaimKeyStatus,
-    ClaimSegmentLabel,
+    PageSegmentLabel,
     ReviewQueue,
 )
 from intake_api.domain.models import (
@@ -108,6 +108,10 @@ CLAIM_AGENT_SPEC = PackAgentSpec(
         "lookup_policy": {"matched": False, "policy_id": None, "status": None},
         "lookup_policy_vehicle": {"match_kind": "NONE", "vehicle_id": None},
     },
+    stub_arguments={
+        "lookup_policy": {"policy_number": "NFM-PA-DEMO"},
+        "lookup_policy_vehicle": {"policy_number": "NFM-PA-DEMO", "vin": "1HGHBUSR5MC181960"},
+    },
 )
 
 
@@ -147,7 +151,7 @@ class ClaimAgentEffects:
                         document_id=document_id,
                         agent_run_id=agent_run_id,
                         page_number=segment.page_number,
-                        segment_label=ClaimSegmentLabel(segment.label),
+                        segment_label=PageSegmentLabel(segment.label),
                         confidence=segment.confidence,
                     )
                 )

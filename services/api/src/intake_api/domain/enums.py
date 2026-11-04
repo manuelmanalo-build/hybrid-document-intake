@@ -44,6 +44,7 @@ class AuditEventType(StrEnum):
     ZAPIER_CALLBACK_RECEIVED = "ZAPIER_CALLBACK_RECEIVED"
     CLAIMS_REFERENCE_DATA_LOADED = "CLAIMS_REFERENCE_DATA_LOADED"
     CLAIM_REROUTED = "CLAIM_REROUTED"
+    BRIEF_REFERENCE_DATA_LOADED = "BRIEF_REFERENCE_DATA_LOADED"
 
 
 class DocumentStatus(StrEnum):
@@ -93,7 +94,7 @@ class ClaimSegmentLabel(StrEnum):
 
 
 class ReviewQueue(StrEnum):
-    """Application-assigned claim review queues (claim-routing-v1); never model-selected."""
+    """Application-assigned review queues (claim- and brief-routing-v1); never model-selected."""
 
     FAST_TRACK = "FAST_TRACK"
     DESK_ADJUSTER = "DESK_ADJUSTER"
@@ -103,8 +104,39 @@ class ReviewQueue(StrEnum):
     TOTAL_LOSS_REVIEW = "TOTAL_LOSS_REVIEW"
     BELOW_DEDUCTIBLE_NOTICE = "BELOW_DEDUCTIBLE_NOTICE"
     DUPLICATE_REVIEW = "DUPLICATE_REVIEW"
+    READY_FOR_PLANNING = "READY_FOR_PLANNING"
+    NEEDS_CLIENT_INFO = "NEEDS_CLIENT_INFO"
+    SCOPE_REVIEW = "SCOPE_REVIEW"
+    LEGAL_REVIEW = "LEGAL_REVIEW"
+    RUSH_REVIEW = "RUSH_REVIEW"
+    TRAFFIC_REVIEW = "TRAFFIC_REVIEW"
 
 
 class ClaimKeyStatus(StrEnum):
     ACTIVE = "ACTIVE"
     REJECTED = "REJECTED"
+
+
+class PageSegmentLabel(StrEnum):
+    """Every page label any domain pack may persist."""
+
+    LOSS_NOTICE = "LOSS_NOTICE"
+    REPAIR_ESTIMATE = "REPAIR_ESTIMATE"
+    POLICE_REPORT = "POLICE_REPORT"
+    CORRESPONDENCE = "CORRESPONDENCE"
+    BRIEF = "BRIEF"
+    MEDIA_PLAN = "MEDIA_PLAN"
+    OTHER = "OTHER"
+
+
+class SowStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    EXPIRED = "EXPIRED"
+    SUSPENDED = "SUSPENDED"
+
+
+class RegulatedCategory(StrEnum):
+    NONE = "NONE"
+    PHARMA = "PHARMA"
+    FINANCIAL = "FINANCIAL"
+    ALCOHOL = "ALCOHOL"

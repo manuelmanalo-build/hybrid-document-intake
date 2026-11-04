@@ -23,6 +23,7 @@ from intake_orchestrator.agent.prompts import CLASSIFICATION_SYSTEM_PROMPT
 
 _CLAIM_PHRASES = ("loss notice", "first notice of loss", "notice of loss", "fnol")
 _INVOICE_PHRASES = ("invoice",)
+_BRIEF_PHRASES = ("campaign brief", "creative brief", "brief:", "brief for")
 
 
 class DocumentClassification(StrictContract):
@@ -48,6 +49,8 @@ class KeywordDocumentClassifier:
         lowered = text.casefold()
         if not lowered.strip():
             return DocumentClassification(value="UNKNOWN", confidence=Decimal("0"))
+        if any(phrase in lowered for phrase in _BRIEF_PHRASES) and "deliverable" in lowered:
+            return DocumentClassification(value="CAMPAIGN_BRIEF", confidence=Decimal("0.85"))
         estimate_with_vin = "estimate" in lowered and "vin" in lowered
         if any(phrase in lowered for phrase in _CLAIM_PHRASES) or estimate_with_vin:
             return DocumentClassification(value="CLAIM_PACKET", confidence=Decimal("0.85"))

@@ -96,7 +96,7 @@ def test_ground_truth_adapter_maps_conflicts_and_segments() -> None:
 
 
 def test_expected_queues_match_the_persisted_enum() -> None:
-    assert set(ExpectedQueue.__args__) == {queue.value for queue in ReviewQueue}
+    assert set(ExpectedQueue.__args__) <= {queue.value for queue in ReviewQueue}
 
 
 def test_perfect_components_score_perfectly() -> None:

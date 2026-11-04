@@ -118,9 +118,20 @@ class LangChainStructuredInvoiceExtractor:
 def candidate_business_data(
     candidate: BaseModel,
 ) -> dict[str, object]:
+    """JSON-safe business values. List fields (brief deliverables) keep each item's values."""
     result: dict[str, object] = {}
     for name in type(candidate).model_fields:
-        value = cast(ExtractedField[object], getattr(candidate, name)).value
+        attribute = getattr(candidate, name)
+        if isinstance(attribute, list):
+            items = cast(list[BaseModel], attribute)
+            result[name] = [
+                item.model_dump(
+                    mode="json", exclude={"confidence", "source_page", "evidence_excerpt"}
+                )
+                for item in items
+            ]
+            continue
+        value = cast(ExtractedField[object], attribute).value
         if isinstance(value, Decimal):
             result[name] = str(value)
         elif isinstance(value, date):
@@ -131,7 +142,12 @@ def candidate_business_data(
 
 
 def candidate_completeness(candidate: BaseModel) -> Decimal:
-    fields = type(candidate).model_fields
+    """Share of populated scalar fields; list fields (deliverables) are checked by rules."""
+    fields = [
+        name
+        for name in type(candidate).model_fields
+        if not isinstance(getattr(candidate, name), list)
+    ]
     populated = sum(
         cast(ExtractedField[object], getattr(candidate, name)).value is not None for name in fields
     )
@@ -305,7 +321,7 @@ def _human_content(
     return text
 
 
-def _normalized_candidate[CandidateT: APInvoiceCandidate | ClaimPacketCandidate](
+def _normalized_candidate[CandidateT: BaseModel](
     candidate_type: type[CandidateT],
     raw: object,
     *,
@@ -317,9 +333,13 @@ def _normalized_candidate[CandidateT: APInvoiceCandidate | ClaimPacketCandidate]
 ) -> CandidateT:
     """Validate model output, then stamp provenance the model is not allowed to choose."""
     validated = candidate_type.model_validate(raw)
-    normalized: dict[str, ExtractedField[object]] = {}
+    normalized: dict[str, object] = {}
     for name in candidate_type.model_fields:
-        field = cast(ExtractedField[object], getattr(validated, name))
+        attribute = getattr(validated, name)
+        if isinstance(attribute, list):
+            normalized[name] = attribute
+            continue
+        field = cast(ExtractedField[object], attribute)
         normalized[name] = field.model_copy(
             update={
                 "extraction_strategy": strategy,

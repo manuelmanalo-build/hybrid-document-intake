@@ -29,13 +29,15 @@ from intake_api.domain.enums import (
     ActorType,
     AuditEventType,
     ClaimKeyStatus,
-    ClaimSegmentLabel,
     DispatchRequestStatus,
     DocumentStatus,
     GraphRunStatus,
     IdempotencyStatus,
+    PageSegmentLabel,
     PolicyStatus,
+    RegulatedCategory,
     ReviewQueue,
+    SowStatus,
     UserRole,
 )
 
@@ -1086,8 +1088,8 @@ class DocumentPageSegment(Base):
     document_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     agent_run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     page_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    segment_label: Mapped[ClaimSegmentLabel] = mapped_column(
-        enum_type(ClaimSegmentLabel, "claim_segment_label", 32), nullable=False
+    segment_label: Mapped[PageSegmentLabel] = mapped_column(
+        enum_type(PageSegmentLabel, "page_segment_label", 32), nullable=False
     )
     confidence: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -1212,4 +1214,107 @@ class ClaimReroute(Base):
     )
     reason: Mapped[str] = mapped_column(String(500), nullable=False)
     rerouted_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StatementOfWork(Base):
+    """Tenant-scoped agency statement of work for the brief slice (ADR 0009)."""
+
+    __tablename__ = "statements_of_work"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_statements_of_work_tenant_id_id"),
+        UniqueConstraint("tenant_id", "sow_number", name="uq_statements_of_work_number"),
+        ForeignKeyConstraint(["tenant_id"], ["tenants.id"], name="fk_statements_of_work_tenant"),
+        CheckConstraint("end_date > start_date", name="ck_statements_of_work_term_order"),
+        CheckConstraint(
+            "total_fees >= 0 AND committed_fees >= 0 AND committed_fees <= total_fees",
+            name="ck_statements_of_work_fees",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    sow_number: Mapped[str] = mapped_column(String(40), nullable=False)
+    client_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[SowStatus] = mapped_column(
+        enum_type(SowStatus, "sow_status", 16), nullable=False
+    )
+    total_fees: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    committed_fees: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    services_in_scope: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    regulated_category: Mapped[RegulatedCategory] = mapped_column(
+        enum_type(RegulatedCategory, "sow_regulated_category", 16), nullable=False
+    )
+    account_lead: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class SowBrand(Base):
+    __tablename__ = "sow_brands"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "sow_id", "brand", name="uq_sow_brands_brand"),
+        ForeignKeyConstraint(
+            ["tenant_id", "sow_id"],
+            ["statements_of_work.tenant_id", "statements_of_work.id"],
+            name="fk_sow_brands_sow",
+        ),
+        Index("ix_sow_brands_tenant_brand", "tenant_id", "brand"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    sow_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    brand: Mapped[str] = mapped_column(String(120), nullable=False)
+
+
+class AssetLeadTime(Base):
+    """Minimum production business days per asset type, per tenant."""
+
+    __tablename__ = "asset_lead_times"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "asset_type", name="uq_asset_lead_times_type"),
+        ForeignKeyConstraint(["tenant_id"], ["tenants.id"], name="fk_asset_lead_times_tenant"),
+        CheckConstraint("min_business_days >= 0", name="ck_asset_lead_times_days"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    asset_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    service: Mapped[str] = mapped_column(String(40), nullable=False)
+    min_business_days: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class BriefIntakeKey(Base):
+    """Deterministic duplicate-detection key for CB-011, one per brief document."""
+
+    __tablename__ = "brief_intake_keys"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "document_id", name="uq_brief_intake_key_document"),
+        ForeignKeyConstraint(
+            ["tenant_id", "document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_brief_intake_keys_document",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "graph_run_id"],
+            ["graph_runs.tenant_id", "graph_runs.id"],
+            name="fk_brief_intake_keys_graph_run",
+        ),
+        Index(
+            "ix_brief_intake_keys_lookup", "tenant_id", "sow_number", "campaign_key", "launch_date"
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    document_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    graph_run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    sow_number: Mapped[str] = mapped_column(String(40), nullable=False)
+    campaign_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    launch_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[ClaimKeyStatus] = mapped_column(
+        enum_type(ClaimKeyStatus, "brief_intake_key_status", 16), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

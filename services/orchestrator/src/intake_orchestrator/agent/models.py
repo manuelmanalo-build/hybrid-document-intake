@@ -207,10 +207,8 @@ def _stub_arguments(name: str, state: dict[str, Any]) -> dict[str, object]:
         identity["attempt_number"] = int(state["extraction_attempts"]) + 1
     elif (pack := pack_for_tool(name)) is not None and name == pack.agent.segmentation_tool:
         identity["inspection_completed"] = True
-    elif name == "lookup_policy":
-        identity["policy_number"] = "NFM-PA-DEMO"
-    elif name == "lookup_policy_vehicle":
-        identity.update({"policy_number": "NFM-PA-DEMO", "vin": "1HGHBUSR5MC181960"})
+    elif (pack := pack_for_tool(name)) is not None and name in pack.agent.stub_arguments:
+        identity.update(pack.agent.stub_arguments[name])
     elif name == "lookup_supplier":
         identity["supplier_name"] = "Demo Supplier"
     elif name == "lookup_purchase_order":

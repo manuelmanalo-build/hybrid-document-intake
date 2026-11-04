@@ -6,7 +6,7 @@ This repository demonstrates enterprise document intake with a deterministic Lan
 graph and a bounded LangChain agent subgraph. Supported document types are AP invoices; per
 [ADR 0008](docs/adr/0008-claim-packet-document-type.md), personal-auto claim packets; and, per
 [ADR 0009](docs/adr/0009-campaign-brief-document-type-and-domain-packs.md), agency campaign briefs
-(in progress). The deterministic application boundary is always
+(pack implemented; review UI in progress). The deterministic application boundary is always
 authoritative. The model proposes tool calls and a recommendation; it never approves, rejects, or
 performs an external side effect.
 
@@ -62,6 +62,9 @@ ADR 0008 adds the claim-packet tools:
 - `extract_claim_from_visual_content`
 - `lookup_policy`
 - `lookup_policy_vehicle`
+
+ADR 0009 adds the campaign-brief tools: `segment_brief_packet`, `extract_brief_from_text`,
+`extract_brief_from_visual_content`, and `lookup_client_sow`.
 
 Invoice-specific tools require an `AP_INVOICE` classification and claim-specific tools require a
 `CLAIM_PACKET` classification. The policy guard enforces this, not the prompt.

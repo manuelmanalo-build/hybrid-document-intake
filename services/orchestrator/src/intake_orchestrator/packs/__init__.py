@@ -3,9 +3,10 @@
 from collections.abc import Mapping
 
 from intake_orchestrator.packs.base import DomainPack
+from intake_orchestrator.packs.briefs import BRIEFS_PACK
 from intake_orchestrator.packs.claims import CLAIMS_PACK
 
-PACKS: Mapping[str, DomainPack] = {pack.document_type: pack for pack in (CLAIMS_PACK,)}
+PACKS: Mapping[str, DomainPack] = {pack.document_type: pack for pack in (CLAIMS_PACK, BRIEFS_PACK)}
 
 
 def pack_for_type(document_type: str | None) -> DomainPack | None:

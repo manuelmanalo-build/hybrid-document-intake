@@ -43,16 +43,40 @@ CLAIM_PROMPT_CONTENT_SHA256 = hashlib.sha256(
 ).hexdigest()
 
 # Document classification runs for every upload, so it has its own version and content hash.
-CLASSIFICATION_PROMPT_VERSION = "document-classification-v1"
+CLASSIFICATION_PROMPT_VERSION = "document-classification-v2"
 
 CLASSIFICATION_SYSTEM_PROMPT = (
     "Classify the supplied document as exactly one of AP_INVOICE (a supplier invoice), "
     "CLAIM_PACKET (a personal-auto insurance claim packet such as a loss notice with a repair "
-    "estimate, police report, or claim correspondence), UNSUPPORTED (a readable document of any "
+    "estimate, police report, or claim correspondence), CAMPAIGN_BRIEF (a client's marketing "
+    "campaign brief or brief email to an agency), UNSUPPORTED (a readable document of any "
     "other kind), or UNKNOWN (unreadable). Give a confidence from 0 to 1. Never make an approval, "
     "coverage, routing, or denial decision."
 )
 
 CLASSIFICATION_PROMPT_CONTENT_SHA256 = hashlib.sha256(
     CLASSIFICATION_SYSTEM_PROMPT.encode()
+).hexdigest()
+
+# Campaign-brief prompts (ADR 0009), versioned and hashed separately.
+BRIEF_PROMPT_VERSION = "brief-intake-agent-v1"
+
+BRIEF_SEGMENTATION_SYSTEM_PROMPT = (
+    "Label every page of an agency campaign-brief packet with exactly one of BRIEF, "
+    "CORRESPONDENCE, MEDIA_PLAN, or OTHER, in page order. Never judge scope, legal risk, routing, "
+    "or approval."
+)
+
+BRIEF_EXTRACTION_SYSTEM_PROMPT = (
+    "Extract a work request from a campaign brief into the required schema. Use null for "
+    "unavailable values and cite only bounded supplied evidence with its page. Keep sources "
+    "separate: launch_date comes from the brief; launch_date_in_correspondence only from a "
+    "follow-up email or note that states a different launch; deliverables come from the brief "
+    "and deliverables_added_in_correspondence only from later correspondence. received_date is "
+    "the date the brief was submitted or sent. Map each deliverable to the closest asset_type. "
+    "Never reconcile conflicts and never judge scope, legal risk, routing, or approval."
+)
+
+BRIEF_PROMPT_CONTENT_SHA256 = hashlib.sha256(
+    f"{BRIEF_SEGMENTATION_SYSTEM_PROMPT}\n{BRIEF_EXTRACTION_SYSTEM_PROMPT}".encode()
 ).hexdigest()
