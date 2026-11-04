@@ -129,7 +129,9 @@ implementations.
 - [x] Record the brief decision, domain packs, brief scope, CB-001 through CB-014, and
   `brief-routing-v1`.
 - [x] Add the 20-packet synthetic brief evaluation set, its in-repo generator, and integrity tests.
-- [ ] Refactor claims into the first domain pack with no behavior change.
+- [x] Refactor claims into the first domain pack with no behavior change (agent spec, tool effects,
+  authoritative validation, confidence, rejection hook, API correction registry), with architecture
+  tests that keep pack-specific branches out of shared modules.
 - [ ] Add the brief pack: contracts with a deliverables list, extraction, SOW and lead-time reference
   tables, `lookup_client_sow`, rules, routing, and confidence.
 - [ ] Generalize the queue and workbench API across packs.

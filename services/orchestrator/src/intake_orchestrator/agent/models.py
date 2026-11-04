@@ -18,6 +18,8 @@ from intake_orchestrator.agent.errors import (
     TransientProviderRateLimit,
     TransientProviderTimeout,
 )
+from intake_orchestrator.packs import pack_extraction_tools, pack_for_tool, pack_for_type
+from intake_orchestrator.packs.base import PackAgentSpec
 
 
 class StubChatModel(BaseChatModel):
@@ -86,8 +88,8 @@ class StubChatModel(BaseChatModel):
             name = "inspect_document"
         elif "classify_document" not in results:
             name = "classify_document"
-        elif results["classify_document"].get("value") == "CLAIM_PACKET":
-            name = self._choose_claim_tool(state, results)
+        elif (pack := pack_for_type(results["classify_document"].get("value"))) is not None:
+            name = self._choose_pack_tool(pack.agent, state, results)
         elif results["classify_document"].get("value") in {"UNSUPPORTED", "UNKNOWN"}:
             name = "submit_recommendation"
         elif not any(key.startswith("extract_invoice_from_") for key in results):
@@ -115,13 +117,15 @@ class StubChatModel(BaseChatModel):
         return name, _stub_arguments(name, state)
 
     @staticmethod
-    def _choose_claim_tool(state: dict[str, Any], results: dict[str, Any]) -> str:
-        """Claim path: segment, extract by available content, validate, optionally retry."""
-        if "segment_claim_packet" not in results:
-            return "segment_claim_packet"
-        if not any(key.startswith("extract_claim_from_") for key in results):
+    def _choose_pack_tool(
+        spec: PackAgentSpec, state: dict[str, Any], results: dict[str, Any]
+    ) -> str:
+        """Pack path: segment, extract by available content, validate, optionally retry."""
+        if spec.segmentation_tool not in results:
+            return spec.segmentation_tool
+        if not any(key in spec.extraction_tools for key in results):
             text = results["inspect_document"].get("text_available", False)
-            return "extract_claim_from_text" if text else "extract_claim_from_visual_content"
+            return spec.text_extraction_tool if text else spec.visual_extraction_tool
         if "validate_candidate" not in results:
             return "validate_candidate"
         if results["validate_candidate"].get("retry_recommended") and (
@@ -130,11 +134,7 @@ class StubChatModel(BaseChatModel):
             return "retry_extraction"
         if "retry_extraction" in results and state["extraction_attempts"] < 2:
             strategy = results["retry_extraction"]["next_strategy"]
-            return (
-                "extract_claim_from_text"
-                if strategy == "TEXT"
-                else "extract_claim_from_visual_content"
-            )
+            return spec.text_extraction_tool if strategy == "TEXT" else spec.visual_extraction_tool
         return "submit_recommendation"
 
 
@@ -203,9 +203,9 @@ def _stub_arguments(name: str, state: dict[str, Any]) -> dict[str, object]:
     latest_candidate = state.get("extraction_candidate_id")
     if name == "classify_document":
         identity["inspection_completed"] = True
-    elif name.startswith(("extract_invoice_from_", "extract_claim_from_")):
+    elif name.startswith("extract_invoice_from_") or name in pack_extraction_tools():
         identity["attempt_number"] = int(state["extraction_attempts"]) + 1
-    elif name == "segment_claim_packet":
+    elif (pack := pack_for_tool(name)) is not None and name == pack.agent.segmentation_tool:
         identity["inspection_completed"] = True
     elif name == "lookup_policy":
         identity["policy_number"] = "NFM-PA-DEMO"
@@ -237,12 +237,13 @@ def _stub_arguments(name: str, state: dict[str, Any]) -> dict[str, object]:
                     "reason_codes", ["AGENT_INCOMPLETE"]
                 ),
                 "summary": "Agent completed bounded evidence gathering; human review is required.",
-                "requested_human_actions": [
-                    "Verify extracted claim fields"
-                    if classification.get("value") == "CLAIM_PACKET"
-                    else "Verify extracted invoice fields"
-                ],
+                "requested_human_actions": [_human_action(classification.get("value"))],
                 "tools_used": state["tools_used"],
             }
         )
     return identity
+
+
+def _human_action(document_type: object) -> str:
+    pack = pack_for_type(document_type if isinstance(document_type, str) else None)
+    return pack.agent.human_action if pack else "Verify extracted invoice fields"

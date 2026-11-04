@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Literal, Protocol, TypedDict
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, START, StateGraph  # pyright: ignore[reportMissingTypeStubs]
@@ -19,21 +18,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from intake_api.infrastructure.config import Settings
 from intake_orchestrator.agent.backend import PostgresAgentBackend
 from intake_orchestrator.agent.classification import (
-    DocumentClassifier,
     LangChainDocumentClassifier,
 )
 from intake_orchestrator.agent.extraction import (
-    LangChainStructuredClaimExtractor,
-    LangChainStructuredClaimSegmenter,
     LangChainStructuredInvoiceExtractor,
-    StructuredClaimExtractor,
-    StructuredClaimSegmenter,
     StubStructuredInvoiceExtractor,
 )
 from intake_orchestrator.agent.graph import compile_agent_subgraph, run_agent
 from intake_orchestrator.agent.models import create_chat_model
 from intake_orchestrator.agent.policy import AgentLimits
-from intake_orchestrator.agent.prompts import CLAIM_PROMPT_VERSION, PROMPT_VERSION
+from intake_orchestrator.agent.prompts import PROMPT_VERSION
+from intake_orchestrator.packs import PACKS
 from intake_orchestrator.workflow import ReviewResponse, WorkflowBackend
 
 
@@ -126,7 +121,7 @@ class ConfiguredResolutionAgent:
                 prompt_version=PROMPT_VERSION,
             )
         )
-        classifier, claim_extractor, claim_segmenter = _claim_components(self._settings, model)
+        live = self._settings.agent_provider != "stub"
         backend = PostgresAgentBackend(
             self._session_factory,
             graph_run_id=graph_run_id,
@@ -138,9 +133,13 @@ class ConfiguredResolutionAgent:
             prompt_version=PROMPT_VERSION,
             extractor=extractor,
             storage_root=self._settings.storage_root,
-            classifier=classifier,
-            claim_extractor=claim_extractor,
-            claim_segmenter=claim_segmenter,
+            classifier=LangChainDocumentClassifier(model=model) if live else None,
+            pack_effects={
+                document_type: pack.build_effects(
+                    settings=self._settings, model=model, model_name=self._settings.agent_model
+                )
+                for document_type, pack in PACKS.items()
+            },
         )
         graph = compile_agent_subgraph(
             model=model,
@@ -517,23 +516,3 @@ def _required_uuid(value: str | None, label: str) -> UUID:
     if value is None:
         raise ValueError(f"{label} is required")
     return UUID(value)
-
-
-def _claim_components(
-    settings: Settings, model: BaseChatModel
-) -> tuple[
-    DocumentClassifier | None, StructuredClaimExtractor | None, StructuredClaimSegmenter | None
-]:
-    """Model-backed classifier and claim components; None selects the deterministic stubs."""
-    if settings.agent_provider == "stub":
-        return None, None, None
-    return (
-        LangChainDocumentClassifier(model=model),
-        LangChainStructuredClaimExtractor(
-            model=model,
-            provider=settings.agent_provider,
-            model_name=settings.agent_model,
-            prompt_version=CLAIM_PROMPT_VERSION,
-        ),
-        LangChainStructuredClaimSegmenter(model=model),
-    )

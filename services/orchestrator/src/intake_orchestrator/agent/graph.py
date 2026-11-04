@@ -38,6 +38,7 @@ from intake_orchestrator.agent.tools import (
     stable_operation_key,
     tool_map,
 )
+from intake_orchestrator.packs import PACKS, pack_for_tool
 
 
 class AgentBackend(Protocol):
@@ -197,8 +198,7 @@ def build_agent_subgraph(
             tools_used=state["tools_used"],
             extraction_candidate_id=state.get("extraction_candidate_id"),
             document_type=_classified_type(state),
-            policy_lookups=state.get("policy_lookups", 0),
-            vehicle_lookups=state.get("vehicle_lookups", 0),
+            lookup_counts=_lookup_counts(state),
         )
         validated = parsed.model_dump(mode="json")
         operation_key = stable_operation_key(
@@ -261,12 +261,10 @@ def build_agent_subgraph(
             update["supplier_lookups"] = state["supplier_lookups"] + 1
         elif tool_name == "lookup_purchase_order":
             update["purchase_order_lookups"] = state["purchase_order_lookups"] + 1
-        elif tool_name == "lookup_policy":
-            update["policy_lookups"] = state.get("policy_lookups", 0) + 1
-        elif tool_name == "lookup_policy_vehicle":
-            update["vehicle_lookups"] = state.get("vehicle_lookups", 0) + 1
         elif tool_name == "submit_recommendation":
             update["recommendation_id"] = str(state["last_tool_result"]["recommendation_id"])
+        elif (counter := _lookup_state_key(tool_name)) is not None:
+            update[counter] = _lookup_counts(state).get(counter, 0) + 1
         return update
 
     async def persist_recommendation(state: AgentState) -> dict[str, object]:
@@ -517,3 +515,20 @@ def _classified_type(state: AgentState) -> str | None:
         return None
     value = classification.get("value")
     return value if isinstance(value, str) else None
+
+
+def _lookup_state_key(tool_name: str) -> str | None:
+    pack = pack_for_tool(tool_name)
+    if pack is None:
+        return None
+    return next((item.state_key for item in pack.agent.lookups if item.tool == tool_name), None)
+
+
+def _lookup_counts(state: AgentState) -> dict[str, int]:
+    """Pack lookup counters; absent keys (older checkpoints) count as zero."""
+    raw = cast(dict[str, object], state)
+    return {
+        item.state_key: int(cast(int, raw.get(item.state_key, 0)))
+        for pack in PACKS.values()
+        for item in pack.agent.lookups
+    }

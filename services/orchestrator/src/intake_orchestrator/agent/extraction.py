@@ -7,6 +7,7 @@ from typing import Any, Literal, Protocol, cast
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel
 
 from intake_orchestrator.agent.claim_contracts import (
     ClaimPacketCandidate,
@@ -115,7 +116,7 @@ class LangChainStructuredInvoiceExtractor:
 
 
 def candidate_business_data(
-    candidate: APInvoiceCandidate | ClaimPacketCandidate,
+    candidate: BaseModel,
 ) -> dict[str, object]:
     result: dict[str, object] = {}
     for name in type(candidate).model_fields:
@@ -129,7 +130,7 @@ def candidate_business_data(
     return result
 
 
-def candidate_completeness(candidate: APInvoiceCandidate | ClaimPacketCandidate) -> Decimal:
+def candidate_completeness(candidate: BaseModel) -> Decimal:
     fields = type(candidate).model_fields
     populated = sum(
         cast(ExtractedField[object], getattr(candidate, name)).value is not None for name in fields

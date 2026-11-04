@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from intake_api.application.document_types import CORRECTION_NORMALIZERS
 from intake_api.application.identity import RequestIdentity
 from intake_api.application.problems import (
     AuthorizationDenied,
@@ -45,39 +46,6 @@ REVIEW_FIELDS = {
 MONEY_FIELDS = {"subtotal", "tax", "total"}
 DATE_FIELDS = {"invoice_date", "due_date"}
 STRING_FIELDS = REVIEW_FIELDS - MONEY_FIELDS - DATE_FIELDS
-
-# Claim-packet corrections (ADR 0008), typed by field.
-CLAIM_STRING_FIELDS = {
-    "policy_number",
-    "named_insured",
-    "cause_of_loss",
-    "vehicle_make",
-    "vehicle_model",
-    "police_report_number",
-    "estimate_number",
-}
-CLAIM_VIN_FIELDS = {"vin_reported", "vin_on_estimate"}
-CLAIM_DATE_FIELDS = {"loss_date", "report_date"}
-CLAIM_MONEY_FIELDS = {
-    "estimate_parts",
-    "estimate_labor",
-    "estimate_materials",
-    "estimate_tax",
-    "estimate_total",
-}
-CLAIM_BOOLEAN_FIELDS = {
-    "injury_indicated_on_form",
-    "injury_mentioned_in_correspondence",
-    "third_party_involved",
-}
-CLAIM_REVIEW_FIELDS = (
-    CLAIM_STRING_FIELDS
-    | CLAIM_VIN_FIELDS
-    | CLAIM_DATE_FIELDS
-    | CLAIM_MONEY_FIELDS
-    | CLAIM_BOOLEAN_FIELDS
-    | {"coverage", "vehicle_year"}
-)
 
 
 class FieldCorrectionCommand(BaseModel):
@@ -251,8 +219,9 @@ class ReviewService:
                 if correction.field in normalized:
                     raise InvalidUpload("A field may be corrected only once.", "invalid-correction")
                 normalized[correction.field] = (
-                    _normalize_claim_value(correction.field, correction.new_value)
-                    if candidate is not None and candidate.document_type == "CLAIM_PACKET"
+                    normalizer(correction.field, correction.new_value)
+                    if candidate is not None
+                    and (normalizer := CORRECTION_NORMALIZERS.get(candidate.document_type))
                     else _normalize_value(correction.field, correction.new_value)
                 )
                 previous_values[correction.field] = corrected.get(correction.field)
@@ -394,50 +363,6 @@ def _normalize_value(field: str, value: str | None) -> object:
             raise InvalidUpload("currency must be a three-letter code.", "invalid-correction")
         return text.upper()
     if field in STRING_FIELDS and (not text or len(text) > 200):
-        raise InvalidUpload(f"{field} must contain 1 to 200 characters.", "invalid-correction")
-    return text
-
-
-def _normalize_claim_value(field: str, value: str | None) -> object:
-    if field not in CLAIM_REVIEW_FIELDS:
-        raise InvalidUpload(f"Unsupported claim correction field: {field}", "invalid-correction")
-    if value is None:
-        return None
-    text = value.strip()
-    if field in CLAIM_MONEY_FIELDS:
-        try:
-            amount = Decimal(text)
-        except InvalidOperation as exc:
-            raise InvalidUpload(f"{field} must be a decimal string.", "invalid-correction") from exc
-        if not amount.is_finite() or amount < 0:
-            raise InvalidUpload(f"{field} must be a non-negative amount.", "invalid-correction")
-        return str(amount)
-    if field in CLAIM_DATE_FIELDS:
-        try:
-            return date.fromisoformat(text).isoformat()
-        except ValueError as exc:
-            raise InvalidUpload(f"{field} must be an ISO date.", "invalid-correction") from exc
-    if field in CLAIM_BOOLEAN_FIELDS:
-        lowered = text.casefold()
-        if lowered not in {"true", "false"}:
-            raise InvalidUpload(f"{field} must be true or false.", "invalid-correction")
-        return lowered == "true"
-    if field == "coverage":
-        if text.upper() not in {"COLLISION", "COMPREHENSIVE"}:
-            raise InvalidUpload(
-                "coverage must be COLLISION or COMPREHENSIVE.", "invalid-correction"
-            )
-        return text.upper()
-    if field == "vehicle_year":
-        if not text.isdigit() or not 1980 <= int(text) <= 2100:
-            raise InvalidUpload("vehicle_year must be a four-digit year.", "invalid-correction")
-        return int(text)
-    if field in CLAIM_VIN_FIELDS:
-        vin = text.upper()
-        if not vin.isalnum() or not 1 <= len(vin) <= 20:
-            raise InvalidUpload(f"{field} must be 1 to 20 letters or digits.", "invalid-correction")
-        return vin
-    if not text or len(text) > 200:
         raise InvalidUpload(f"{field} must contain 1 to 200 characters.", "invalid-correction")
     return text
 
