@@ -62,7 +62,7 @@ reason code, and the input values it used.
 | CR-003 | Loss date is on or after the policy effective date and before its expiration date. | FAIL |
 | CR-004 | Policy was not cancelled on or before the loss date. | FAIL |
 | CR-005 | `vin_reported` is on the policy. A value that fails the VIN check digit, is within two character edits of a policy VIN, and has the same year and make is `REVIEW` (`VIN_DISCREPANCY`); no match is `FAIL` (`VEHICLE_NOT_ON_POLICY`). | REVIEW or FAIL |
-| CR-006 | No earlier non-rejected claim in the tenant has the same policy number, VIN, and loss date. | REVIEW (`DUPLICATE`) |
+| CR-006 | No earlier non-rejected claim in the tenant has the same policy number, VIN, and loss date. "Earlier" means its duplicate key was recorded first, so revalidating an original never flags it as a copy of a later duplicate. | REVIEW (`DUPLICATE`) |
 | CR-007 | Report date is no more than 30 days after the loss date. | REVIEW (`LATE_REPORTING`) |
 | CR-008 | Loss date is not within 14 days after policy inception. | REVIEW (`LOSS_NEAR_INCEPTION`) |
 | CR-009 | No injury is indicated on the form or mentioned in correspondence. A form that says no injury while correspondence describes one adds `INJURY_CONFLICT`. | REVIEW (`INJURY_INDICATED`) |
@@ -124,6 +124,29 @@ validates every row before writing, upserts by business key, never deletes, and 
 `CLAIMS_REFERENCE_DATA_LOADED` audit event with row counts and a source SHA-256. The local Compose
 profile runs it once against `test-data/claims` after bootstrap. Downgrading the migration refuses
 to run while claims audit events exist, because audit history is append-only.
+
+## Claims review API
+
+| Endpoint | Roles | Returns |
+|---|---|---|
+| `GET /api/v1/claims/queue?queue=` | reviewer, approver, auditor | Open claim review tasks with the effective queue, routing reason and flags, upload age, and service level; counts by queue and by service level; sorted by urgency |
+| `GET /api/v1/claims/{task_id}` | reviewer, approver, auditor | The workbench read model: the queue item, all 14 rule outcomes, every field with value, confidence, source page and evidence (reviewed values marked), page segments, and re-route history |
+| `POST /api/v1/claims/{task_id}/reroute` | reviewer, approver | Moves an open claim to another queue with a required reason; releases the actor's claim on the task; audited as `CLAIM_REROUTED` (queues only; the reason is stored in `claim_reroutes`, not in audit metadata) |
+
+The effective queue is the latest `claim-routing-v1` decision, unless a reviewer re-routed after it;
+a later revalidation (for example after a correction) records a newer rules decision that then
+wins. Reviewers correct claim fields through the existing review completion endpoint; claim
+corrections are typed (dates, amounts, booleans, coverage, year, VIN).
+
+## Service levels
+
+A claim's service level is the time from upload to first human review (the first claim on its
+review task), against a per-queue target: `INTAKE_CLAIMS_SLA_FAST_TRACK_HOURS` (default 4),
+`INTAKE_CLAIMS_SLA_BODILY_INJURY_HOURS` (2), `INTAKE_CLAIMS_SLA_NOTICE_HOURS` (24, below-deductible
+notices), and `INTAKE_CLAIMS_SLA_STANDARD_HOURS` (8, all other queues). Open claims are `ON_TRACK`,
+`DUE_SOON` (within 60 minutes or 75% of the target used) or `OVERDUE`; reviewed claims are `MET` or
+`MISSED`. The defaults are placeholders; a carrier sets its own, often from state acknowledgment
+deadlines.
 
 ## Decision confidence
 

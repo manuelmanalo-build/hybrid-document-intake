@@ -1178,3 +1178,38 @@ class ClaimRoutingDecision(Base):
     reason_code: Mapped[str] = mapped_column(String(100), nullable=False)
     flags: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ClaimReroute(Base):
+    """A reviewer's audited change of a claim's queue. Rules route; only people re-route."""
+
+    __tablename__ = "claim_reroutes"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_claim_reroutes_tenant_id_id"),
+        ForeignKeyConstraint(
+            ["tenant_id", "review_task_id"],
+            ["review_tasks.tenant_id", "review_tasks.id"],
+            name="fk_claim_reroutes_review_task",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "rerouted_by_user_id"],
+            ["users.tenant_id", "users.id"],
+            name="fk_claim_reroutes_user",
+        ),
+        CheckConstraint("from_queue <> to_queue", name="ck_claim_reroutes_changes_queue"),
+        CheckConstraint("char_length(reason) >= 1", name="ck_claim_reroutes_reason_present"),
+        Index("ix_claim_reroutes_task_created", "tenant_id", "review_task_id", "created_at"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    review_task_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    review_cycle: Mapped[int] = mapped_column(Integer, nullable=False)
+    from_queue: Mapped[ReviewQueue] = mapped_column(
+        enum_type(ReviewQueue, "claim_reroute_from_queue", 32), nullable=False
+    )
+    to_queue: Mapped[ReviewQueue] = mapped_column(
+        enum_type(ReviewQueue, "claim_reroute_to_queue", 32), nullable=False
+    )
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    rerouted_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

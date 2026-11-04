@@ -18,11 +18,24 @@ from intake_api.application.claims_reference import (
     parse_policies,
     parse_vehicles,
 )
+from intake_api.application.claims_review import ClaimsReviewService, RerouteCommand
 from intake_api.application.identity import configured_actor
-from intake_api.application.review import CompleteReviewCommand, ReviewService
-from intake_api.domain.enums import ClaimKeyStatus, GraphRunStatus, ReviewQueue, UserRole
+from intake_api.application.problems import InvalidUpload, ReviewConflict
+from intake_api.application.review import (
+    CompleteReviewCommand,
+    FieldCorrectionCommand,
+    ReviewService,
+)
+from intake_api.domain.enums import (
+    AuditEventType,
+    ClaimKeyStatus,
+    GraphRunStatus,
+    ReviewQueue,
+    UserRole,
+)
 from intake_api.domain.models import (
     AgentToolCall,
+    AuditEvent,
     ClaimIntakeKey,
     ClaimRoutingDecision,
     ConfidenceRun,
@@ -77,6 +90,7 @@ def api(database_url: str, tmp_path: Path) -> Iterator[tuple[TestClient, object]
         database_url=database_url,
         storage_root=tmp_path,
         demo_submitter_token="integration-token",
+        demo_reviewer_token="integration-reviewer",
         upload_max_bytes=500_000,
     )
     app = create_app(settings)
@@ -272,6 +286,129 @@ async def test_claim_packet_is_segmented_extracted_routed_and_reviewed(
         )
         assert run is not None
         assert run.status == GraphRunStatus.COMPLETED
+
+
+def _add_users(app: object, *roles: UserRole) -> None:
+    settings = app.state.settings  # type: ignore[attr-defined]
+    with app.state.session_factory() as session, session.begin():  # type: ignore[attr-defined]
+        for role in roles:
+            actor = configured_actor(settings, role)
+            session.add(
+                User(
+                    id=actor.user_id,
+                    tenant_id=actor.tenant_id,
+                    external_subject=actor.subject,
+                    display_name=actor.subject,
+                    role=actor.role,
+                )
+            )
+
+
+@pytest.mark.asyncio
+async def test_claims_queue_workbench_reroute_and_claim_corrections(
+    api: tuple[TestClient, object], database_url: str
+) -> None:
+    client, app = api
+    first = _upload(client, "C01_packet.pdf", "queue-c01")
+    second = _upload(client, "C02_packet.pdf", "queue-c02")
+    settings = _graph_settings(app, database_url)
+    await _dispatch_runs(settings, 2)
+    _add_users(app, UserRole.REVIEWER, UserRole.APPROVER)
+    app_settings = app.state.settings  # type: ignore[attr-defined]
+    reviewer = configured_actor(app_settings, UserRole.REVIEWER)
+    approver = configured_actor(app_settings, UserRole.APPROVER)
+    claims = ClaimsReviewService(app_settings, app.state.session_factory)  # type: ignore[attr-defined]
+
+    response = client.get(
+        "/api/v1/claims/queue", headers={"Authorization": "Bearer integration-reviewer"}
+    )
+    assert response.status_code == 200, response.text
+    queue = response.json()
+    assert len(queue["items"]) == 2
+    assert queue["counts_by_queue"]["FAST_TRACK"] == 1
+    assert queue["counts_by_queue"]["DUPLICATE_REVIEW"] == 1
+    assert (
+        queue["counts_by_service_level"]["ON_TRACK"] + queue["counts_by_service_level"]["DUE_SOON"]
+        == 2
+    )
+    assert {item["route"]["routed_by"] for item in queue["items"]} == {"RULES"}
+    assert (
+        client.get(
+            "/api/v1/claims/queue", headers={"Authorization": "Bearer integration-token"}
+        ).status_code
+        == 403
+    )
+
+    items = {item.document_id: item for item in claims.list_queue(reviewer).items}
+    duplicate = items[second]
+    bench = claims.workbench(duplicate.review_task_id, reviewer)
+    assert len(bench.rules) == 14
+    assert next(rule for rule in bench.rules if rule.rule_id == "CR-006").outcome == "REVIEW"
+    assert len(bench.fields) == 21
+    assert [segment.label for segment in bench.segments] == ["LOSS_NOTICE", "REPAIR_ESTIMATE"]
+    total = next(field for field in bench.fields if field.name == "estimate_total")
+    assert total.source_page == 2
+    assert total.evidence_excerpt
+
+    with pytest.raises(InvalidUpload):
+        claims.reroute(
+            duplicate.review_task_id,
+            RerouteCommand(to_queue=ReviewQueue.DUPLICATE_REVIEW, reason="Already there"),
+            reviewer,
+        )
+    route = claims.reroute(
+        duplicate.review_task_id,
+        RerouteCommand(
+            to_queue=ReviewQueue.DESK_ADJUSTER, reason="Different repair shop; not a duplicate."
+        ),
+        reviewer,
+    )
+    assert route.review_queue == ReviewQueue.DESK_ADJUSTER
+    moved = claims.workbench(duplicate.review_task_id, reviewer)
+    assert moved.item.route.routed_by == "REVIEWER"
+    assert moved.item.route.review_queue == ReviewQueue.DESK_ADJUSTER
+    assert moved.reroutes[0].from_queue == ReviewQueue.DUPLICATE_REVIEW
+    with app.state.session_factory() as session:  # type: ignore[attr-defined]
+        event = session.scalar(
+            select(AuditEvent).where(AuditEvent.event_type == AuditEventType.CLAIM_REROUTED)
+        )
+        assert event is not None
+        assert event.sanitized_metadata["to_queue"] == "DESK_ADJUSTER"
+        assert "reason" not in event.sanitized_metadata
+
+    reviews = ReviewService(app_settings, app.state.session_factory)  # type: ignore[attr-defined]
+    reviews.claim(duplicate.review_task_id, approver)
+    with pytest.raises(ReviewConflict):
+        claims.reroute(
+            duplicate.review_task_id,
+            RerouteCommand(to_queue=ReviewQueue.SIU_REFERRAL, reason="Claimed elsewhere"),
+            reviewer,
+        )
+
+    clean = items[first]
+    reviews.claim(clean.review_task_id, approver)
+    reviews.complete(
+        clean.review_task_id,
+        CompleteReviewCommand(
+            decision="REQUEST_CORRECTION",
+            reason="Supplement received from the shop.",
+            field_corrections=[
+                FieldCorrectionCommand(
+                    field="estimate_total", new_value="6000.00", reason="Shop supplement"
+                )
+            ],
+        ),
+        approver,
+    )
+    await _dispatch_resume(settings)
+
+    revalidated = claims.workbench(clean.review_task_id, reviewer)
+    assert revalidated.review_cycle == 2
+    assert revalidated.item.route.routed_by == "RULES"
+    assert revalidated.item.route.review_queue == ReviewQueue.DESK_ADJUSTER
+    corrected = next(field for field in revalidated.fields if field.name == "estimate_total")
+    assert corrected.value == "6000.00"
+    assert corrected.reviewed is True
 
 
 def _now() -> datetime:
