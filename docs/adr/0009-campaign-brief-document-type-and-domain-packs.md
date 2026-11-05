@@ -52,3 +52,17 @@ parallel silos.
 - Letting the model judge scope or legal risk: makes routing non-reproducible and crosses the
   authority boundary.
 - Sending clarifying questions automatically: the model must not contact clients.
+
+## Amendment (2026-11-05): drafts and the work-request payload
+
+- Clarifying questions are drafted **deterministically** from the brief's failed rules and
+  extracted values (no model call in v1), so every question traces to a rule and the same brief
+  always yields the same draft. The reviewer edits the draft, sends it from their own email, and
+  records the final text; the record and a `CLIENT_QUESTIONS_SENT` audit event (without the body)
+  are kept. A model-written draft can replace the template later behind the same review step.
+- An approved brief's `DOCUMENT_APPROVED` outbox event adds `document_type` and a `work_request`
+  object (`work-request-v1`): client, brand, campaign, resolved SOW, effective launch, end, budget,
+  KPI, and one task per deliverable (title, asset type, service, quantity, description, due date,
+  and whether it was requested in the brief or in correspondence). Claim events add only
+  `document_type`. Invoice events are unchanged.
+

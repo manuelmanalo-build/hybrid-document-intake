@@ -233,3 +233,14 @@ summary {
 .list .number {
   text-align: right;
 }
+.decide.emphasis {
+  border-color: var(--claims-attention-line);
+  box-shadow: inset 4px 0 0 var(--claims-attention-line);
+}
+.decide input {
+  min-height: 36px;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #c7ced8;
+  border-radius: 4px;
+  font: inherit;
+}

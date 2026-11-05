@@ -139,6 +139,7 @@ implementations.
   `/api/v1/claims` kept as claims aliases), with per-type summaries, queues, service levels, typed
   brief corrections, and per-item deliverable evidence.
 - [x] Make the Angular intake, queue, and workbench screens pack-driven (claims and briefs).
-- [ ] Emit a work-request outbox payload with one task per deliverable.
-- [ ] Draft clarifying questions for `NEEDS_CLIENT_INFO` briefs for a reviewer to edit and send.
+- [x] Emit a work-request outbox payload (`work-request-v1`) with one task per deliverable.
+- [x] Draft clarifying questions for incomplete briefs for a reviewer to edit and send, and record
+  what was sent (migration 0008, `CLIENT_QUESTIONS_SENT` audit).
 

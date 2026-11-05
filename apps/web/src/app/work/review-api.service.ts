@@ -117,6 +117,26 @@ export interface Workbench {
   readonly reroutes: readonly Reroute[];
 }
 
+export interface ClientQuestionsDraft {
+  readonly subject: string;
+  readonly body: string;
+  readonly questions: readonly string[];
+  readonly reason_codes: readonly string[];
+}
+
+export interface SentClientRequest {
+  readonly subject: string;
+  readonly body: string;
+  readonly sent_by_user_id: string;
+  readonly review_cycle: number;
+  readonly created_at: string;
+}
+
+export interface ClientQuestions {
+  readonly draft: ClientQuestionsDraft;
+  readonly sent: readonly SentClientRequest[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReviewApiService {
   private readonly http = inject(HttpClient);
@@ -145,6 +165,29 @@ export class ReviewApiService {
     return this.http.post<QueueRoute>(
       `/api/v1/review-queues/tasks/${taskId}/reroute`,
       { to_queue: toQueue, reason },
+      { headers: this.headers(token), withCredentials: true },
+    );
+  }
+
+  clientQuestions(taskId: string, token: string): Observable<ClientQuestions> {
+    return this.http.get<ClientQuestions>(
+      `/api/v1/review-queues/tasks/${taskId}/client-questions`,
+      {
+        headers: this.headers(token),
+        withCredentials: true,
+      },
+    );
+  }
+
+  recordClientQuestions(
+    taskId: string,
+    subject: string,
+    body: string,
+    token: string,
+  ): Observable<SentClientRequest> {
+    return this.http.post<SentClientRequest>(
+      `/api/v1/review-queues/tasks/${taskId}/client-questions/sent`,
+      { subject, body },
       { headers: this.headers(token), withCredentials: true },
     );
   }
