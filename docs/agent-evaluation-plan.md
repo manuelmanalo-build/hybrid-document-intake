@@ -145,3 +145,26 @@ EVALUATION_LIVE_ENABLED=true uv run python -m evaluation.live_claims_extraction
 A live run makes two model calls per packet (40 total). Any configured provider works, for example
 `AGENT_PROVIDER=anthropic AGENT_MODEL=<claude model> ANTHROPIC_API_KEY=<key>`.
 
+### Live briefs diagnostic
+
+`evaluation.live_briefs_extraction` runs the brief segmenter and extractor over the 20 packets in
+`test-data/briefs`, then applies the real CB rules and `brief-routing-v1` to what was extracted,
+using the reference CSVs offline (no database). It reports page-label accuracy, accuracy on the
+structured fields (client, brand, campaign, stated SOW, dates, KPI and target, budget, the
+correspondence launch date), presence of the free-text fields, deliverable precision and recall
+(matched on asset type, quantity, and due date), queue accuracy with a confusion matrix, and split
+digital and scanned field accuracy.
+
+**Hard gate:** zero false `READY_FOR_PLANNING`. A brief whose expected queue is anything else must
+never be routed as ready; the command exits non-zero if one is. Missing B12's follow-up email, for
+example, routes it as ready instead of rush review and fails the gate.
+
+```bash
+PYTHONPATH=.:services/api/src:services/orchestrator/src \
+AGENT_PROVIDER=anthropic AGENT_MODEL=<model> ANTHROPIC_API_KEY=<key> \
+EVALUATION_LIVE_ENABLED=true uv run python -m evaluation.live_briefs_extraction
+```
+
+Two model calls per packet (40 total). The report is written to
+`evaluation-live-briefs-report.json` (git-ignored).
+
