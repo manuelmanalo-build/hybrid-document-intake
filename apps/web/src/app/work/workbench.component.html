@@ -301,6 +301,60 @@
           </div>
         </section>
 
+        @if (isBrief()) {
+          <section
+            class="claims-panel decide"
+            [class.emphasis]="needsClientInfo()"
+            aria-labelledby="questions-title"
+          >
+            <h3 id="questions-title">Questions for the client</h3>
+            @if ((questions()?.draft?.questions ?? []).length === 0) {
+              <p class="claims-muted small">
+                No questions needed: the brief has the information the rules require.
+              </p>
+            } @else {
+              <p class="claims-muted small">
+                Drafted from the failed rules. Edit, send from your own email, then record it here.
+                The system never contacts the client.
+              </p>
+              <label for="question-subject">Subject</label>
+              <input
+                id="question-subject"
+                [value]="questionSubject()"
+                (input)="setQuestionText('subject', $event)"
+              />
+              <label for="question-body">Message</label>
+              <textarea
+                id="question-body"
+                rows="9"
+                [value]="questionBody()"
+                (input)="setQuestionText('body', $event)"
+              ></textarea>
+              <div class="actions">
+                <button type="button" class="claims-button" (click)="copyQuestions()">
+                  Copy message
+                </button>
+                <button
+                  type="button"
+                  class="claims-button primary"
+                  (click)="recordQuestions()"
+                  [disabled]="busy() || !claimedByMe()"
+                >
+                  Record as sent
+                </button>
+              </div>
+            }
+            @if ((questions()?.sent ?? []).length > 0) {
+              <h4>Sent</h4>
+              <ul class="passed">
+                @for (entry of questions()?.sent ?? []; track entry.created_at) {
+                  <li>{{ entry.subject }} · cycle {{ entry.review_cycle }}</li>
+                }
+              </ul>
+            }
+          </section>
+        }
+
         @if (canReview() && (unclaimed() || claimedByMe())) {
           <section class="claims-panel decide" aria-labelledby="reroute-title">
             <h3 id="reroute-title">Re-route</h3>

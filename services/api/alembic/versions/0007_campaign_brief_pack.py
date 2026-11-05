@@ -86,7 +86,14 @@ def downgrade() -> None:
     op.create_check_constraint(
         "audit_event_type",
         "audit_events",
-        _in("event_type", [e.value for e in AuditEventType if e not in ADDED_AUDIT_EVENTS]),
+        _in(
+            "event_type",
+            [
+                e.value
+                for e in AuditEventType
+                if e not in ADDED_AUDIT_EVENTS and e != AuditEventType.CLIENT_QUESTIONS_SENT
+            ],
+        ),
     )
     for table, column, constraint in QUEUE_COLUMNS:
         _replace_check(table, (constraint,), constraint, _in(column, CLAIM_QUEUES))

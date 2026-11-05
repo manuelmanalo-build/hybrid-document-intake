@@ -98,6 +98,21 @@ lists are corrected through client follow-up or traffic review in v1. The Angula
 between claims and briefs; the workbench shows deliverables with per-item source pages and outlines a
 launch date or deliverable list that correspondence changes.
 
+## Approved work requests
+
+Approving a brief emits the shared `DOCUMENT_APPROVED` outbox event with a `work_request`
+(`work-request-v1`) carrying one task per deliverable, for example
+`"Winter Warmers: 12 × Social static post"` with its service and due date. Delivery to Zapier (and on
+to a work-management tool) uses the existing outbox, worker, and idempotency guarantees.
+
+## Clarifying questions
+
+`GET /api/v1/review-queues/tasks/{task_id}/client-questions` returns a rule-derived draft (one
+question per missing objective, audience, KPI, launch date, or deliverables; unmeasurable KPI;
+missing budget; out-of-order dates; correspondence changes; low-confidence critical fields) and the
+questions already sent. After sending from their own email, a reviewer who has claimed the task
+records the final text with `POST …/client-questions/sent`. The system never contacts a client.
+
 ## Evaluation
 
 `test-data/briefs`: 20 packets, `statements_of_work.csv`, `sow_brands.csv`, `lead_times.csv`, and

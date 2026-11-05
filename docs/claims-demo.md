@@ -54,4 +54,9 @@ agency Meridian & Pike.
 5. **B09, legal.** A pharma brief with label claims goes to legal review.
 6. **Correct and re-check.** On a ready brief, correct the budget above the SOW's remaining fees and
    submit; the brief is re-checked and moves to scope review.
+7. **B03, ask the client.** In needs client info, open Holiday Smart Gifting. The "Questions for the
+   client" panel drafts one question because the KPI target has no number. Claim the task, edit the
+   message, copy it into an email, and record it as sent.
+8. **Approve and hand off.** Approve a ready brief; its outbox event carries one task per
+   deliverable for the work-management tool (visible in the mock Zapier service locally).
 

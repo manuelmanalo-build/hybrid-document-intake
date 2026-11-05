@@ -160,6 +160,12 @@ class PackWorkflow(Protocol):
         self, session: AsyncSession, *, tenant_id: UUID, document_id: UUID
     ) -> None: ...
 
+    async def outbox_payload(
+        self, session: AsyncSession, *, tenant_id: UUID, business_data: Mapping[str, object]
+    ) -> dict[str, object]:
+        """Extra keys for the approved-document outbox event (added to the shared payload)."""
+        ...
+
 
 class EffectsFactory(Protocol):
     def __call__(

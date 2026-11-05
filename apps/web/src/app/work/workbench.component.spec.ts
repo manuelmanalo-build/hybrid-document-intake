@@ -130,6 +130,9 @@ describe('WorkbenchComponent', () => {
     fixture.componentRef.setInput('userId', 'reviewer-1');
     fixture.detectChanges();
     http.expectOne('/api/v1/review-queues/tasks/task-b12').flush(briefWorkbench());
+    http
+      .expectOne('/api/v1/review-queues/tasks/task-b12/client-questions')
+      .flush({ draft: { subject: '', body: '', questions: [], reason_codes: [] }, sent: [] });
     http.expectOne('/api/v1/documents/doc-b12/content').flush(new Blob(['%PDF-1.7']));
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
@@ -144,5 +147,40 @@ describe('WorkbenchComponent', () => {
     const options = Array.from(reroute?.options ?? []).map((option) => option.value);
     expect(options).toContain('TRAFFIC_REVIEW');
     expect(options).not.toContain('FAST_TRACK');
+  });
+
+  it('drafts client questions for a brief and records them only once claimed', () => {
+    const fixture = TestBed.createComponent(WorkbenchComponent);
+    fixture.componentRef.setInput('taskId', 'task-b12');
+    fixture.componentRef.setInput('role', 'REVIEWER');
+    fixture.componentRef.setInput('userId', 'reviewer-1');
+    fixture.detectChanges();
+    http.expectOne('/api/v1/review-queues/tasks/task-b12').flush(briefWorkbench('reviewer-1'));
+    http.expectOne('/api/v1/review-queues/tasks/task-b12/client-questions').flush({
+      draft: {
+        subject: 'Questions on the Cold Brew New Year brief',
+        body: 'Hi Elena,\n\n1. Could you confirm the final launch date?',
+        questions: ['Could you confirm the final launch date?'],
+        reason_codes: ['CORRESPONDENCE_CONFLICT'],
+      },
+      sent: [],
+    });
+    http.expectOne('/api/v1/documents/doc-b12/content').flush(new Blob(['%PDF-1.7']));
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector<HTMLInputElement>('#question-subject')?.value).toBe(
+      'Questions on the Cold Brew New Year brief',
+    );
+    expect(element.textContent).toContain('The system never contacts the client.');
+    Array.from(element.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent.includes('Record as sent'))
+      ?.click();
+
+    const request = http.expectOne('/api/v1/review-queues/tasks/task-b12/client-questions/sent');
+    expect(request.request.body).toEqual({
+      subject: 'Questions on the Cold Brew New Year brief',
+      body: 'Hi Elena,\n\n1. Could you confirm the final launch date?',
+    });
   });
 });

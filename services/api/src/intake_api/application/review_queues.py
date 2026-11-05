@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from intake_api.application.client_questions import ClientQuestionsDraft, draft_client_questions
 from intake_api.application.document_types import (
     REVIEW_DISPLAYS,
     ItemSummary,
@@ -31,6 +32,7 @@ from intake_api.application.problems import (
 from intake_api.domain.enums import ActorType, AuditEventType, ReviewQueue, UserRole
 from intake_api.domain.models import (
     AuditEvent,
+    BriefClientRequest,
     ClaimReroute,
     ClaimRoutingDecision,
     Document,
@@ -135,6 +137,25 @@ class WorkbenchView(BaseModel):
     fields: list[FieldView]
     segments: list[SegmentView]
     reroutes: list[RerouteView]
+
+
+class ClientQuestionsView(BaseModel):
+    draft: ClientQuestionsDraft
+    sent: list[SentClientRequest]
+
+
+class SentClientRequest(BaseModel):
+    subject: str
+    body: str
+    sent_by_user_id: UUID
+    review_cycle: int
+    created_at: datetime
+
+
+class SendClientQuestionsCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    subject: Annotated[str, Field(min_length=1, max_length=200)]
+    body: Annotated[str, Field(min_length=1, max_length=5000)]
 
 
 class RerouteCommand(BaseModel):
@@ -322,6 +343,86 @@ class ReviewQueueService:
                 flags=current.flags,
                 routed_by="REVIEWER",
                 routing_version=None,
+            )
+
+    def client_questions(self, task_id: UUID, identity: RequestIdentity) -> ClientQuestionsView:
+        """A rule-derived draft of clarifying questions for a brief, plus what was already sent."""
+        _require_role(identity, READ_ROLES)
+        with self._sessions() as session:
+            task, document_type = _review_task(session, task_id, identity.tenant_id)
+            if document_type != "CAMPAIGN_BRIEF":
+                raise ResourceNotFound("Client questions exist only for campaign briefs.")
+            route = _effective_route(session, task)
+            return ClientQuestionsView(
+                draft=draft_client_questions(
+                    _business_data(session, task), route.flags if route else []
+                ),
+                sent=[
+                    SentClientRequest(
+                        subject=row.subject,
+                        body=row.body,
+                        sent_by_user_id=row.sent_by_user_id,
+                        review_cycle=row.review_cycle,
+                        created_at=row.created_at,
+                    )
+                    for row in session.scalars(
+                        select(BriefClientRequest)
+                        .where(
+                            BriefClientRequest.tenant_id == identity.tenant_id,
+                            BriefClientRequest.review_task_id == task.id,
+                        )
+                        .order_by(BriefClientRequest.created_at)
+                    )
+                ],
+            )
+
+    def record_client_questions(
+        self, task_id: UUID, command: SendClientQuestionsCommand, identity: RequestIdentity
+    ) -> SentClientRequest:
+        """Record questions the reviewer sent themselves; the system never contacts a client."""
+        _require_role(identity, REROUTE_ROLES)
+        with self._sessions() as session, session.begin():
+            task, document_type = _review_task(session, task_id, identity.tenant_id, lock=True)
+            if document_type != "CAMPAIGN_BRIEF":
+                raise ResourceNotFound("Client questions exist only for campaign briefs.")
+            if task.status != "OPEN" or task.claimed_by_user_id != identity.user_id:
+                raise ReviewConflict(
+                    "Claim the open review task before recording client questions."
+                )
+            route = _effective_route(session, task)
+            row = BriefClientRequest(
+                tenant_id=identity.tenant_id,
+                review_task_id=task.id,
+                review_cycle=task.cycle,
+                subject=command.subject.strip(),
+                body=command.body.strip(),
+                reason_codes=list(route.flags) if route else [],
+                sent_by_user_id=identity.user_id,
+            )
+            session.add(row)
+            session.add(
+                AuditEvent(
+                    tenant_id=task.tenant_id,
+                    document_id=task.document_id,
+                    graph_run_id=task.graph_run_id,
+                    event_type=AuditEventType.CLIENT_QUESTIONS_SENT,
+                    actor_type=ActorType.USER,
+                    actor_id=str(identity.user_id),
+                    correlation_id=str(task.graph_run_id),
+                    sanitized_metadata={
+                        "review_task_id": str(task.id),
+                        "review_cycle": task.cycle,
+                        "body_characters": len(command.body.strip()),
+                    },
+                )
+            )
+            session.flush()
+            return SentClientRequest(
+                subject=row.subject,
+                body=row.body,
+                sent_by_user_id=row.sent_by_user_id,
+                review_cycle=row.review_cycle,
+                created_at=row.created_at,
             )
 
     def _item(

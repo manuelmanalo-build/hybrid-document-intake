@@ -826,6 +826,24 @@ class PostgresWorkflowBackend:
                 approved.approved_by_user_id = decision.decided_by_user_id
                 approved.approved_at = decision.created_at
             task.status = "APPROVED"
+            candidate_type = (
+                await session.scalar(
+                    select(ExtractionCandidate.document_type).where(
+                        ExtractionCandidate.id == reviewed.extraction_candidate_id,
+                        ExtractionCandidate.tenant_id == tenant_id,
+                    )
+                )
+                if reviewed.extraction_candidate_id
+                else None
+            )
+            approved_pack = pack_for_type(candidate_type)
+            pack_payload = (
+                await approved_pack.workflow.outbox_payload(
+                    session, tenant_id=tenant_id, business_data=reviewed.business_data
+                )
+                if approved_pack
+                else {}
+            )
             if not await session.scalar(
                 select(OutboxEvent.id).where(
                     OutboxEvent.id == event_id,
@@ -848,6 +866,7 @@ class PostgresWorkflowBackend:
                             "document_id": str(document_id),
                             "graph_run_id": str(graph_run_id),
                             "business_data": reviewed.business_data,
+                            **pack_payload,
                         },
                         status="PENDING",
                         attempt_count=0,

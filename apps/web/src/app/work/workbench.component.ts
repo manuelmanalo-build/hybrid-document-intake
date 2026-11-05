@@ -23,7 +23,13 @@ import {
   formatDate,
   formatMoney,
 } from './work-labels';
-import { ReviewApiService, ReviewQueue, WorkField, Workbench } from './review-api.service';
+import {
+  ClientQuestions,
+  ReviewApiService,
+  ReviewQueue,
+  WorkField,
+  Workbench,
+} from './review-api.service';
 
 interface FieldRow {
   readonly name: string;
@@ -84,6 +90,13 @@ export class WorkbenchComponent implements OnInit, OnDestroy {
   protected readonly decisionReason = signal('');
   protected readonly rerouteQueue = signal<ReviewQueue | ''>('');
   protected readonly rerouteReason = signal('');
+  protected readonly questions = signal<ClientQuestions | null>(null);
+  protected readonly questionSubject = signal('');
+  protected readonly questionBody = signal('');
+  protected readonly isBrief = computed(() => this.bench()?.document_type === 'CAMPAIGN_BRIEF');
+  protected readonly needsClientInfo = computed(
+    () => this.item()?.route.review_queue === 'NEEDS_CLIENT_INFO',
+  );
 
   protected readonly item = computed(() => this.bench()?.item ?? null);
   protected readonly pack = computed(() => PACKS[this.bench()?.document_type ?? 'CLAIM_PACKET']);
@@ -199,6 +212,37 @@ export class WorkbenchComponent implements OnInit, OnDestroy {
     else this.rerouteReason.set(value);
   }
 
+  protected setQuestionText(target: 'subject' | 'body', event: Event): void {
+    const value = (event.target as HTMLInputElement | HTMLTextAreaElement).value;
+    if (target === 'subject') this.questionSubject.set(value);
+    else this.questionBody.set(value);
+  }
+
+  protected copyQuestions(): void {
+    const text = `${this.questionSubject()}\n\n${this.questionBody()}`;
+    void navigator.clipboard.writeText(text).then(
+      () => {
+        this.notice.set('Questions copied. Paste them into your email to the client.');
+      },
+      () => {
+        this.error.set('Copying failed; select the text and copy it manually.');
+      },
+    );
+  }
+
+  protected recordQuestions(): void {
+    const subject = this.questionSubject().trim();
+    const body = this.questionBody().trim();
+    if (subject === '' || body === '') {
+      this.error.set('Add a subject and the questions before recording them as sent.');
+      return;
+    }
+    this.run(
+      this.claims.recordClientQuestions(this.taskId(), subject, body, this.token()),
+      'Recorded the questions you sent to the client.',
+    );
+  }
+
   protected setRerouteQueue(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
     this.rerouteQueue.set(
@@ -293,6 +337,7 @@ export class WorkbenchComponent implements OnInit, OnDestroy {
       next: (bench) => {
         this.bench.set(bench);
         this.busy.set(false);
+        if (bench.document_type === 'CAMPAIGN_BRIEF') this.loadQuestions(withPdf);
         if (withPdf) {
           const focus = PACKS[bench.document_type].focusField;
           const conflictPage = bench.fields.find(
@@ -305,6 +350,18 @@ export class WorkbenchComponent implements OnInit, OnDestroy {
       error: () => {
         this.busy.set(false);
         this.error.set('This task could not be loaded.');
+      },
+    });
+  }
+
+  private loadQuestions(resetDraft: boolean): void {
+    this.claims.clientQuestions(this.taskId(), this.token()).subscribe({
+      next: (questions) => {
+        this.questions.set(questions);
+        if (resetDraft || this.questionBody() === '') {
+          this.questionSubject.set(questions.draft.subject);
+          this.questionBody.set(questions.draft.body);
+        }
       },
     });
   }

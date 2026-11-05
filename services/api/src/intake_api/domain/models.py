@@ -1318,3 +1318,37 @@ class BriefIntakeKey(Base):
         enum_type(ClaimKeyStatus, "brief_intake_key_status", 16), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BriefClientRequest(Base):
+    """Clarifying questions a reviewer sent to the client for an incomplete brief (ADR 0009).
+
+    The application drafts the questions from failed rules; a person edits and sends them through
+    their own email, then records the final text here. The system never contacts a client.
+    """
+
+    __tablename__ = "brief_client_requests"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_brief_client_requests_tenant_id_id"),
+        ForeignKeyConstraint(
+            ["tenant_id", "review_task_id"],
+            ["review_tasks.tenant_id", "review_tasks.id"],
+            name="fk_brief_client_requests_review_task",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "sent_by_user_id"],
+            ["users.tenant_id", "users.id"],
+            name="fk_brief_client_requests_user",
+        ),
+        CheckConstraint("char_length(body) >= 1", name="ck_brief_client_requests_body"),
+        Index("ix_brief_client_requests_task", "tenant_id", "review_task_id", "created_at"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    review_task_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    review_cycle: Mapped[int] = mapped_column(Integer, nullable=False)
+    subject: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str] = mapped_column(String(5000), nullable=False)
+    reason_codes: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    sent_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

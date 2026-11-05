@@ -6,10 +6,13 @@ from fastapi import APIRouter, Depends, Query, Request
 from intake_api.api.dependencies import get_identity
 from intake_api.application.identity import RequestIdentity
 from intake_api.application.review_queues import (
+    ClientQuestionsView,
     QueueRoute,
     RerouteCommand,
     ReviewQueueService,
     ReviewQueueView,
+    SendClientQuestionsCommand,
+    SentClientRequest,
     WorkbenchView,
 )
 from intake_api.domain.enums import ReviewQueue
@@ -49,3 +52,22 @@ def reroute(
     service: Annotated[ReviewQueueService, Depends(get_review_queue_service)],
 ) -> QueueRoute:
     return service.reroute(task_id, command, identity)
+
+
+@router.get("/tasks/{task_id}/client-questions", response_model=ClientQuestionsView)
+def client_questions(
+    task_id: UUID,
+    identity: Annotated[RequestIdentity, Depends(get_identity)],
+    service: Annotated[ReviewQueueService, Depends(get_review_queue_service)],
+) -> ClientQuestionsView:
+    return service.client_questions(task_id, identity)
+
+
+@router.post("/tasks/{task_id}/client-questions/sent", response_model=SentClientRequest)
+def record_client_questions(
+    task_id: UUID,
+    command: SendClientQuestionsCommand,
+    identity: Annotated[RequestIdentity, Depends(get_identity)],
+    service: Annotated[ReviewQueueService, Depends(get_review_queue_service)],
+) -> SentClientRequest:
+    return service.record_client_questions(task_id, command, identity)

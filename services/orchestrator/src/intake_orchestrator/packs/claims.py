@@ -716,6 +716,13 @@ class ClaimWorkflow:
         if key is not None:
             key.status = ClaimKeyStatus.REJECTED
 
+    async def outbox_payload(
+        self, session: AsyncSession, *, tenant_id: UUID, business_data: Mapping[str, object]
+    ) -> dict[str, object]:
+        # A claim-specific integration payload is deferred (ADR 0008); label the type only.
+        del session, tenant_id, business_data
+        return {"document_type": "CLAIM_PACKET"}
+
 
 CLAIMS_PACK = DomainPack(
     agent=CLAIM_AGENT_SPEC, build_effects=build_claim_effects, workflow=ClaimWorkflow()
