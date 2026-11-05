@@ -14,15 +14,15 @@
     <div class="title-row">
       <div>
         <h2 id="claim-title">
-          {{ claim.named_insured ?? 'Unknown insured' }} ·
-          {{ claim.vehicle ?? 'Vehicle not extracted' }}
+          {{ claim.summary.party ?? 'Unknown party' }} ·
+          {{ claim.summary.subject ?? 'Not extracted' }}
         </h2>
         <p class="meta claims-muted">
           <span
             >Packet <span class="claims-mono">{{ claim.original_filename ?? '—' }}</span></span
           >
           <span
-            >Policy <span class="claims-mono">{{ claim.policy_number ?? '—' }}</span></span
+            >Reference <span class="claims-mono">{{ claim.summary.reference ?? '—' }}</span></span
           >
           <span>Review cycle {{ bench()?.review_cycle }}</span>
           <span>{{
@@ -148,71 +148,112 @@
           @for (group of groups(); track group.title) {
             <h4>{{ group.title }}</h4>
             @for (row of group.rows; track row.name) {
-              <div class="field" [class.conflict]="row.conflict">
-                <span class="claims-muted">{{ row.label }}</span>
-                @if (editing() === row.name) {
-                  @if (row.kind === 'boolean') {
-                    <select
-                      [attr.aria-label]="'New value for ' + row.label"
-                      [value]="draftFor(row.name)"
-                      (change)="setDraft(row.name, $event)"
-                    >
-                      <option value="true">Yes</option>
-                      <option value="false">No</option>
-                    </select>
-                  } @else if (row.kind === 'coverage') {
-                    <select
-                      [attr.aria-label]="'New value for ' + row.label"
-                      [value]="draftFor(row.name)"
-                      (change)="setDraft(row.name, $event)"
-                    >
-                      <option value="COLLISION">Collision</option>
-                      <option value="COMPREHENSIVE">Comprehensive</option>
-                    </select>
-                  } @else {
-                    <input
-                      [attr.aria-label]="'New value for ' + row.label"
-                      [value]="draftFor(row.name)"
-                      (input)="setDraft(row.name, $event)"
-                    />
+              @if (row.kind === 'list') {
+                <div class="list" [class.conflict]="row.conflict">
+                  <span class="claims-muted">{{ row.label }} · {{ row.display }}</span>
+                  @if (row.items.length > 0) {
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Deliverable</th>
+                          <th scope="col" class="number">Qty</th>
+                          <th scope="col">Due</th>
+                          <th scope="col"><span class="visually-hidden">Source</span></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (item of row.items; track item.key) {
+                          <tr>
+                            <td [title]="item.evidence ?? ''">
+                              {{ item.asset }}
+                              <span class="claims-muted small block">{{ item.description }}</span>
+                            </td>
+                            <td class="number claims-mono">{{ item.quantity }}</td>
+                            <td class="claims-mono">{{ item.due }}</td>
+                            <td>
+                              <button
+                                type="button"
+                                class="mini"
+                                [disabled]="item.page === null"
+                                [attr.aria-label]="'Show source page for ' + item.asset"
+                                (click)="showPage(item.page)"
+                              >
+                                p.{{ item.page ?? '–' }}
+                              </button>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
                   }
-                } @else {
-                  <span class="value" [title]="row.evidence ?? ''">
-                    {{ row.display }}
-                    @if (row.reviewed) {
-                      <span class="claims-chip info">Corrected</span>
-                    }
-                    @if (row.name in drafts()) {
-                      <span class="claims-chip attention"
-                        >Pending: {{ draftFor(row.name) || '—' }}</span
+                </div>
+              } @else {
+                <div class="field" [class.conflict]="row.conflict">
+                  <span class="claims-muted">{{ row.label }}</span>
+                  @if (editing() === row.name) {
+                    @if (row.kind === 'boolean') {
+                      <select
+                        [attr.aria-label]="'New value for ' + row.label"
+                        [value]="draftFor(row.name)"
+                        (change)="setDraft(row.name, $event)"
                       >
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                      </select>
+                    } @else if (row.kind === 'coverage') {
+                      <select
+                        [attr.aria-label]="'New value for ' + row.label"
+                        [value]="draftFor(row.name)"
+                        (change)="setDraft(row.name, $event)"
+                      >
+                        <option value="COLLISION">Collision</option>
+                        <option value="COMPREHENSIVE">Comprehensive</option>
+                      </select>
+                    } @else {
+                      <input
+                        [attr.aria-label]="'New value for ' + row.label"
+                        [value]="draftFor(row.name)"
+                        (input)="setDraft(row.name, $event)"
+                      />
                     }
-                  </span>
-                }
-                <span class="claims-muted small claims-mono">{{ row.confidence ?? '' }}</span>
-                <button
-                  type="button"
-                  class="mini"
-                  [disabled]="row.page === null"
-                  [attr.aria-label]="'Show source page for ' + row.label"
-                  (click)="showPage(row.page)"
-                >
-                  p.{{ row.page ?? '–' }}
-                </button>
-                @if (row.name in drafts()) {
-                  <button type="button" class="mini" (click)="discard(row.name)">Undo</button>
-                } @else {
+                  } @else {
+                    <span class="value" [title]="row.evidence ?? ''">
+                      {{ row.display }}
+                      @if (row.reviewed) {
+                        <span class="claims-chip info">Corrected</span>
+                      }
+                      @if (row.name in drafts()) {
+                        <span class="claims-chip attention"
+                          >Pending: {{ draftFor(row.name) || '—' }}</span
+                        >
+                      }
+                    </span>
+                  }
+                  <span class="claims-muted small claims-mono">{{ row.confidence ?? '' }}</span>
                   <button
                     type="button"
                     class="mini"
-                    [disabled]="!claimedByMe()"
-                    [attr.aria-label]="'Correct ' + row.label"
-                    (click)="startEdit(row)"
+                    [disabled]="row.page === null"
+                    [attr.aria-label]="'Show source page for ' + row.label"
+                    (click)="showPage(row.page)"
                   >
-                    Edit
+                    p.{{ row.page ?? '–' }}
                   </button>
-                }
-              </div>
+                  @if (row.name in drafts()) {
+                    <button type="button" class="mini" (click)="discard(row.name)">Undo</button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="mini"
+                      [disabled]="!claimedByMe()"
+                      [attr.aria-label]="'Correct ' + row.label"
+                      (click)="startEdit(row)"
+                    >
+                      Edit
+                    </button>
+                  }
+                </div>
+              }
             }
           }
         </section>

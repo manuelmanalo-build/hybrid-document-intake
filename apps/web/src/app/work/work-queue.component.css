@@ -55,6 +55,7 @@ h2 {
   margin-left: auto;
   font-size: 0.85rem;
 }
+.types,
 .tabs {
   display: flex;
   flex-wrap: wrap;

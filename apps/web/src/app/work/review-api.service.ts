@@ -2,6 +2,8 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
+export type PackType = 'CLAIM_PACKET' | 'CAMPAIGN_BRIEF';
+
 export type ReviewQueue =
   | 'FAST_TRACK'
   | 'DESK_ADJUSTER'
@@ -10,11 +12,17 @@ export type ReviewQueue =
   | 'BODILY_INJURY_ADJUSTER'
   | 'TOTAL_LOSS_REVIEW'
   | 'BELOW_DEDUCTIBLE_NOTICE'
-  | 'DUPLICATE_REVIEW';
+  | 'DUPLICATE_REVIEW'
+  | 'READY_FOR_PLANNING'
+  | 'NEEDS_CLIENT_INFO'
+  | 'SCOPE_REVIEW'
+  | 'LEGAL_REVIEW'
+  | 'RUSH_REVIEW'
+  | 'TRAFFIC_REVIEW';
 
 export type ServiceLevelStatus = 'ON_TRACK' | 'DUE_SOON' | 'OVERDUE' | 'MET' | 'MISSED';
 
-export interface ClaimRoute {
+export interface QueueRoute {
   readonly review_queue: ReviewQueue;
   readonly reason_code: string;
   readonly flags: readonly string[];
@@ -28,28 +36,36 @@ export interface ServiceLevel {
   readonly minutes_remaining: number;
 }
 
-export interface ClaimQueueItem {
+export interface ItemSummary {
+  readonly reference: string | null;
+  readonly party: string | null;
+  readonly subject: string | null;
+  readonly event_label: string;
+  readonly event_date: string | null;
+  readonly context: string | null;
+  readonly amount: string | null;
+  readonly item_count: number | null;
+}
+
+export interface ReviewQueueItem {
   readonly review_task_id: string;
   readonly document_id: string;
+  readonly document_type: PackType;
   readonly task_status: string;
   readonly claimed_by_user_id: string | null;
   readonly original_filename: string | null;
-  readonly policy_number: string | null;
-  readonly named_insured: string | null;
-  readonly vehicle: string | null;
-  readonly loss_date: string | null;
-  readonly cause_of_loss: string | null;
-  readonly estimate_total: string | null;
-  readonly route: ClaimRoute;
+  readonly summary: ItemSummary;
+  readonly route: QueueRoute;
   readonly uploaded_at: string;
   readonly age_minutes: number;
   readonly service_level: ServiceLevel;
 }
 
-export interface ClaimQueueView {
+export interface ReviewQueueView {
+  readonly document_type: PackType;
   readonly generated_at: string;
   readonly queue: ReviewQueue | null;
-  readonly items: readonly ClaimQueueItem[];
+  readonly items: readonly ReviewQueueItem[];
   readonly counts_by_queue: Readonly<Record<string, number>>;
   readonly counts_by_service_level: Readonly<Record<string, number>>;
 }
@@ -61,13 +77,20 @@ export interface RuleOutcome {
   readonly reason_code: string | null;
 }
 
-export interface ClaimField {
+export interface ItemEvidence {
+  readonly confidence: string | null;
+  readonly source_page: number | null;
+  readonly evidence_excerpt: string | null;
+}
+
+export interface WorkField {
   readonly name: string;
   readonly value: unknown;
   readonly confidence: string | null;
   readonly source_page: number | null;
   readonly evidence_excerpt: string | null;
   readonly reviewed: boolean;
+  readonly items?: readonly ItemEvidence[] | null;
 }
 
 export interface PageSegment {
@@ -84,28 +107,30 @@ export interface Reroute {
   readonly created_at: string;
 }
 
-export interface ClaimWorkbench {
-  readonly item: ClaimQueueItem;
+export interface Workbench {
+  readonly document_type: PackType;
+  readonly item: ReviewQueueItem;
   readonly review_cycle: number;
   readonly rules: readonly RuleOutcome[];
-  readonly fields: readonly ClaimField[];
+  readonly fields: readonly WorkField[];
   readonly segments: readonly PageSegment[];
   readonly reroutes: readonly Reroute[];
 }
 
 @Injectable({ providedIn: 'root' })
-export class ClaimsApiService {
+export class ReviewApiService {
   private readonly http = inject(HttpClient);
 
-  queue(token: string): Observable<ClaimQueueView> {
-    return this.http.get<ClaimQueueView>('/api/v1/claims/queue', {
+  queue(documentType: PackType, token: string): Observable<ReviewQueueView> {
+    return this.http.get<ReviewQueueView>('/api/v1/review-queues', {
+      params: { document_type: documentType },
       headers: this.headers(token),
       withCredentials: true,
     });
   }
 
-  workbench(taskId: string, token: string): Observable<ClaimWorkbench> {
-    return this.http.get<ClaimWorkbench>(`/api/v1/claims/${taskId}`, {
+  workbench(taskId: string, token: string): Observable<Workbench> {
+    return this.http.get<Workbench>(`/api/v1/review-queues/tasks/${taskId}`, {
       headers: this.headers(token),
       withCredentials: true,
     });
@@ -116,9 +141,9 @@ export class ClaimsApiService {
     toQueue: ReviewQueue,
     reason: string,
     token: string,
-  ): Observable<ClaimRoute> {
-    return this.http.post<ClaimRoute>(
-      `/api/v1/claims/${taskId}/reroute`,
+  ): Observable<QueueRoute> {
+    return this.http.post<QueueRoute>(
+      `/api/v1/review-queues/tasks/${taskId}/reroute`,
       { to_queue: toQueue, reason },
       { headers: this.headers(token), withCredentials: true },
     );

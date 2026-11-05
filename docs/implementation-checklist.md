@@ -135,8 +135,10 @@ implementations.
 - [x] Add the brief pack: contracts with a deliverables list, extraction, SOW and lead-time reference
   tables (migration 0007, audited loader, Compose job), `lookup_client_sow`, rules, routing, and
   confidence; keyword classification of briefs in stub mode.
-- [ ] Generalize the queue and workbench API across packs.
-- [ ] Make the Angular intake, queue, and workbench screens pack-driven.
+- [x] Generalize the queue and workbench API across packs (`/api/v1/review-queues`, with
+  `/api/v1/claims` kept as claims aliases), with per-type summaries, queues, service levels, typed
+  brief corrections, and per-item deliverable evidence.
+- [x] Make the Angular intake, queue, and workbench screens pack-driven (claims and briefs).
 - [ ] Emit a work-request outbox payload with one task per deliverable.
 - [ ] Draft clarifying questions for `NEEDS_CLIENT_INFO` briefs for a reviewer to edit and send.
 

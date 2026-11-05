@@ -36,3 +36,22 @@ fixture C01, so all but the first route to duplicate review.
   and Firefox honor page jumps; Safari may always open at page 1.
 - Service-level targets come from `INTAKE_CLAIMS_SLA_*` settings and are measured from upload to the
   first time a reviewer claims the task.
+
+## Campaign briefs (agency)
+
+The same screens handle the 20 synthetic briefs in `test-data/briefs/packets` for the fictional
+agency Meridian & Pike.
+
+1. **Intake.** Upload the brief packets alongside or instead of the claim packets; each is classified
+   and routed on its own.
+2. **Work queues → Briefs.** The queues are ready for planning, needs client info, scope review,
+   legal review, rush review, traffic review, and duplicate review.
+3. **B12, the moved launch.** In rush review, open Cold Brew New Year. The packet opens on the
+   follow-up email; the two launch-date fields are outlined because the brief says January 5 and the
+   email says November 30, which leaves too little production time for the video.
+4. **B05 and B06, change orders.** In scope review: a budget over the SOW's remaining fees, and an
+   out-of-home request the SOW does not cover.
+5. **B09, legal.** A pharma brief with label claims goes to legal review.
+6. **Correct and re-check.** On a ready brief, correct the budget above the SOW's remaining fees and
+   submit; the brief is re-checked and moves to scope review.
+

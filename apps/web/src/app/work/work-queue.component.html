@@ -1,10 +1,23 @@
-<section class="queue" aria-labelledby="claims-queue-title">
+<section class="queue" aria-labelledby="work-queue-title">
   <div class="heading">
     <div>
-      <h2 id="claims-queue-title">Claim work queues</h2>
+      <h2 id="work-queue-title">Work queues</h2>
       <p class="claims-muted">
-        Personal auto FNOL · {{ rows().length }} of {{ view()?.items?.length ?? 0 }} open claims
+        {{ pack().label }} · {{ rows().length }} of {{ view()?.items?.length ?? 0 }} open
+        {{ pack().singular }}s
       </p>
+    </div>
+    <div class="types" role="group" aria-label="Document type">
+      @for (option of packOptions; track option.type) {
+        <button
+          type="button"
+          class="claims-pill"
+          [attr.aria-pressed]="packType() === option.type"
+          (click)="choosePack(option.type)"
+        >
+          {{ option.label }}
+        </button>
+      }
     </div>
     <button type="button" class="claims-button" (click)="refresh()" [disabled]="loading()">
       {{ loading() ? 'Refreshing…' : 'Refresh' }}
@@ -45,10 +58,10 @@
     <table>
       <thead>
         <tr>
-          <th scope="col">Claim</th>
-          <th scope="col">Insured and vehicle</th>
-          <th scope="col">Loss</th>
-          <th scope="col" class="number">Estimate</th>
+          <th scope="col">{{ pack().columns.item }}</th>
+          <th scope="col">{{ pack().columns.party }}</th>
+          <th scope="col">{{ pack().columns.event }}</th>
+          <th scope="col" class="number">{{ pack().columns.amount }}</th>
           <th scope="col">Queue</th>
           <th scope="col">Age</th>
           <th scope="col">Service level</th>
@@ -60,18 +73,23 @@
         @for (item of rows(); track item.review_task_id) {
           <tr>
             <td>
-              <span class="claims-mono strong">{{ item.original_filename ?? 'Claim packet' }}</span>
-              <span class="sub claims-mono">{{ item.policy_number ?? 'No policy number' }}</span>
+              <span class="claims-mono strong">{{ item.original_filename ?? 'Packet' }}</span>
+              <span class="sub claims-mono">{{ item.summary.reference ?? 'No reference' }}</span>
             </td>
             <td>
-              <span class="strong">{{ item.named_insured ?? 'Unknown insured' }}</span>
-              <span class="sub">{{ item.vehicle ?? 'Vehicle not extracted' }}</span>
+              <span class="strong">{{ item.summary.party ?? 'Unknown party' }}</span>
+              <span class="sub">{{ item.summary.subject ?? 'Not extracted' }}</span>
             </td>
             <td class="nowrap">
-              {{ date(item.loss_date) }}
-              <span class="sub">{{ item.cause_of_loss ?? '' }}</span>
+              {{ date(item.summary.event_date) }}
+              <span class="sub">{{ item.summary.context ?? '' }}</span>
             </td>
-            <td class="number claims-mono">{{ money(item.estimate_total) }}</td>
+            <td class="number claims-mono">
+              {{ money(item.summary.amount) }}
+              @if (item.summary.item_count !== null) {
+                <span class="sub">{{ item.summary.item_count }} deliverables</span>
+              }
+            </td>
             <td class="nowrap strong">
               {{ queueLabel(item.route.review_queue) }}
               @if (item.route.routed_by === 'REVIEWER') {
@@ -93,7 +111,7 @@
                     >{{ flag(code).label }}</span
                   >
                 } @empty {
-                  <span class="claims-chip">Clean · within limit</span>
+                  <span class="claims-chip">{{ pack().cleanLabel }}</span>
                 }
               </div>
             </td>
@@ -101,7 +119,7 @@
               <button
                 type="button"
                 class="claims-button"
-                (click)="openClaim.emit(item.review_task_id)"
+                (click)="openTask.emit(item.review_task_id)"
               >
                 Open
               </button>
@@ -110,7 +128,7 @@
         } @empty {
           <tr>
             <td colspan="9" class="empty">
-              {{ loading() ? 'Loading claims…' : 'No open claims in this queue.' }}
+              {{ loading() ? 'Loading…' : 'Nothing open in this queue.' }}
             </td>
           </tr>
         }

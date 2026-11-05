@@ -86,6 +86,18 @@ it after bootstrap.
 critical-field confidence 0.20, evidence coverage 0.15, SOW match 0.10, scope fit 0.10, rule score
 0.10.
 
+## Review API and screens
+
+Briefs use the generic review-queue API: `GET /api/v1/review-queues?document_type=CAMPAIGN_BRIEF`,
+`GET /api/v1/review-queues/tasks/{task_id}`, and `POST /api/v1/review-queues/tasks/{task_id}/reroute`
+(re-routes are limited to brief queues). Queue rows summarize client and brand, campaign, launch,
+budget, and deliverable count. Service-level targets: `INTAKE_BRIEFS_SLA_RUSH_HOURS` (2),
+`INTAKE_BRIEFS_SLA_NEEDS_INFO_HOURS` (4), `INTAKE_BRIEFS_SLA_READY_HOURS` (24), and
+`INTAKE_BRIEFS_SLA_STANDARD_HOURS` (8). Reviewers correct scalar work-request fields; deliverable
+lists are corrected through client follow-up or traffic review in v1. The Angular work queues switch
+between claims and briefs; the workbench shows deliverables with per-item source pages and outlines a
+launch date or deliverable list that correspondence changes.
+
 ## Evaluation
 
 `test-data/briefs`: 20 packets, `statements_of_work.csv`, `sow_brands.csv`, `lead_times.csv`, and
