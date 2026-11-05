@@ -21,6 +21,7 @@ from intake_api.domain.enums import AuditEventType, ClaimKeyStatus, PageSegmentL
 from intake_api.domain.models import (
     AgentRecommendation,
     AgentRun,
+    AssetLeadTime,
     BriefIntakeKey,
     ClaimRoutingDecision,
     DocumentPageSegment,
@@ -481,6 +482,57 @@ class BriefWorkflow:
         # A rejected brief must not block a later legitimate brief as a duplicate (CB-011).
         if key is not None:
             key.status = ClaimKeyStatus.REJECTED
+
+    async def outbox_payload(
+        self, session: AsyncSession, *, tenant_id: UUID, business_data: Mapping[str, object]
+    ) -> dict[str, object]:
+        """An approved work request: one task per deliverable for the work-management tool."""
+        assets = {
+            row.asset_type: row
+            for row in await session.scalars(
+                select(AssetLeadTime).where(AssetLeadTime.tenant_id == tenant_id)
+            )
+        }
+        data = safe_brief_data(business_data)
+        sow = resolve_sow(data, await brand_sows(session, tenant_id=tenant_id, brand=data.brand))
+        campaign = data.campaign_name or "Untitled campaign"
+        tasks: list[dict[str, object]] = []
+        for source, items in (
+            ("BRIEF", data.deliverables),
+            ("CORRESPONDENCE", data.deliverables_added_in_correspondence),
+        ):
+            for index, item in enumerate(items):
+                asset = assets.get(item.asset_type)
+                label = asset.label if asset else item.asset_type
+                tasks.append(
+                    {
+                        "task_key": f"{source.lower()}-{index + 1}",
+                        "title": f"{campaign}: {item.quantity} × {label}",
+                        "asset_type": item.asset_type,
+                        "service": asset.service if asset else None,
+                        "quantity": item.quantity,
+                        "description": item.description,
+                        "due_date": item.due_date.isoformat() if item.due_date else None,
+                        "requested_in": source,
+                    }
+                )
+        launch = data.launch_date_in_correspondence or data.launch_date
+        return {
+            "document_type": "CAMPAIGN_BRIEF",
+            "work_request": {
+                "schema_version": "work-request-v1",
+                "client_name": data.client_name,
+                "brand": data.brand,
+                "campaign_name": data.campaign_name,
+                "sow_number": sow.sow_number if sow else data.sow_number_stated,
+                "launch_date": launch.isoformat() if launch else None,
+                "end_date": data.end_date.isoformat() if data.end_date else None,
+                "budget_total": str(data.budget_total) if data.budget_total is not None else None,
+                "primary_kpi": data.primary_kpi,
+                "kpi_target": data.kpi_target,
+                "tasks": tasks,
+            },
+        }
 
 
 async def _candidate_data(

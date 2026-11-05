@@ -25,19 +25,25 @@ from intake_api.application.claims_reference import (
     parse_vehicles,
 )
 from intake_api.application.identity import configured_actor
-from intake_api.application.problems import InvalidUpload
+from intake_api.application.problems import InvalidUpload, ReviewConflict
 from intake_api.application.review import (
     CompleteReviewCommand,
     FieldCorrectionCommand,
     ReviewService,
 )
-from intake_api.application.review_queues import RerouteCommand, ReviewQueueService
+from intake_api.application.review_queues import (
+    RerouteCommand,
+    ReviewQueueService,
+    SendClientQuestionsCommand,
+)
 from intake_api.domain.enums import (
+    AuditEventType,
     ReviewQueue,
     UserRole,
 )
 from intake_api.domain.models import (
     AgentToolCall,
+    AuditEvent,
     BriefIntakeKey,
     ClaimRoutingDecision,
     ConfidenceRun,
@@ -45,6 +51,7 @@ from intake_api.domain.models import (
     ExtractionCandidate,
     ExtractionFieldEvidence,
     GraphRun,
+    OutboxEvent,
     ReviewTask,
     Tenant,
     User,
@@ -376,3 +383,67 @@ async def test_generic_review_queue_api_serves_briefs(
     assert revalidated.review_cycle == 2
     assert revalidated.item.route.review_queue == ReviewQueue.SCOPE_REVIEW
     assert "OVER_SOW_BUDGET" in revalidated.item.route.flags
+
+
+@pytest.mark.asyncio
+async def test_approved_brief_emits_one_task_per_deliverable_and_records_client_questions(
+    api: tuple[TestClient, object], database_url: str
+) -> None:
+    client, app = api
+    document_id = _upload(client, "B01_brief.pdf", "approve-b01")
+    settings = _graph_settings(app, database_url)
+    await _dispatch_runs(settings, 1)
+    _add_users(app, UserRole.REVIEWER, UserRole.APPROVER)
+    app_settings = app.state.settings  # type: ignore[attr-defined]
+    reviewer = configured_actor(app_settings, UserRole.REVIEWER)
+    approver = configured_actor(app_settings, UserRole.APPROVER)
+    queues = ReviewQueueService(app_settings, app.state.session_factory)  # type: ignore[attr-defined]
+    task_id = queues.list_queue(reviewer, document_type="CAMPAIGN_BRIEF").items[0].review_task_id
+
+    questions = queues.client_questions(task_id, reviewer)
+    assert questions.draft.questions == []
+    with pytest.raises(ReviewConflict):
+        queues.record_client_questions(
+            task_id, SendClientQuestionsCommand(subject="Questions", body="Hi"), reviewer
+        )
+    reviews = ReviewService(app_settings, app.state.session_factory)  # type: ignore[attr-defined]
+    reviews.claim(task_id, reviewer)
+    sent = queues.record_client_questions(
+        task_id,
+        SendClientQuestionsCommand(
+            subject="Questions on the Winter Warmers brief",
+            body="Hi Elena,\n\n1. Can you confirm the café list?\n\nThanks",
+        ),
+        reviewer,
+    )
+    assert sent.review_cycle == 1
+    assert len(queues.client_questions(task_id, reviewer).sent) == 1
+    reviews.unclaim(task_id, reviewer)
+
+    reviews.claim(task_id, approver)
+    reviews.complete(
+        task_id,
+        CompleteReviewCommand(decision="APPROVE", reason="Brief complete and in scope."),
+        approver,
+    )
+    await _dispatch_resume(settings)
+
+    with app.state.session_factory() as session:  # type: ignore[attr-defined]
+        event = session.scalar(select(OutboxEvent).where(OutboxEvent.document_id == document_id))
+        assert event is not None
+        assert event.payload["document_type"] == "CAMPAIGN_BRIEF"
+        work_request = event.payload["work_request"]
+        assert work_request["sow_number"] == "SOW-1001"
+        assert [task["task_key"] for task in work_request["tasks"]] == [
+            "brief-1",
+            "brief-2",
+            "brief-3",
+        ]
+        first = work_request["tasks"][0]
+        assert first["title"] == "Winter Warmers: 12 × Social static post"
+        assert (first["service"], first["due_date"]) == ("SOCIAL", "2026-11-20")
+        audit = session.scalar(
+            select(AuditEvent).where(AuditEvent.event_type == AuditEventType.CLIENT_QUESTIONS_SENT)
+        )
+        assert audit is not None
+        assert "body" not in audit.sanitized_metadata
