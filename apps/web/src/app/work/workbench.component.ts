@@ -14,14 +14,16 @@ import { Observable } from 'rxjs';
 
 import { FieldCorrection, IntakeApiService, ReviewDecision, UserRole } from '../intake-api.service';
 import {
+  ASSET_LABELS,
+  FieldKind,
+  PACKS,
   QUEUE_LABELS,
-  QUEUE_ORDER,
   SEGMENT_LABELS,
   flagLabel,
   formatDate,
   formatMoney,
-} from './claim-labels';
-import { ClaimField, ClaimWorkbench, ClaimsApiService, ReviewQueue } from './claims-api.service';
+} from './work-labels';
+import { ReviewApiService, ReviewQueue, WorkField, Workbench } from './review-api.service';
 
 interface FieldRow {
   readonly name: string;
@@ -32,7 +34,18 @@ interface FieldRow {
   readonly evidence: string | null;
   readonly reviewed: boolean;
   readonly conflict: boolean;
-  readonly kind: 'text' | 'boolean' | 'coverage';
+  readonly kind: FieldKind;
+  readonly items: readonly ListItemRow[];
+}
+
+interface ListItemRow {
+  readonly key: string;
+  readonly asset: string;
+  readonly quantity: string;
+  readonly description: string;
+  readonly due: string;
+  readonly page: number | null;
+  readonly evidence: string | null;
 }
 
 interface FieldGroup {
@@ -40,66 +53,15 @@ interface FieldGroup {
   readonly rows: readonly FieldRow[];
 }
 
-const GROUPS: readonly (readonly [string, readonly string[]])[] = [
-  ['Policy', ['policy_number', 'named_insured', 'coverage']],
-  [
-    'Loss',
-    ['loss_date', 'report_date', 'cause_of_loss', 'police_report_number', 'third_party_involved'],
-  ],
-  ['Injury', ['injury_indicated_on_form', 'injury_mentioned_in_correspondence']],
-  ['Vehicle', ['vehicle_year', 'vehicle_make', 'vehicle_model', 'vin_reported', 'vin_on_estimate']],
-  [
-    'Estimate',
-    [
-      'estimate_number',
-      'estimate_parts',
-      'estimate_labor',
-      'estimate_materials',
-      'estimate_tax',
-      'estimate_total',
-    ],
-  ],
-];
-
-const LABELS: Readonly<Record<string, string>> = {
-  policy_number: 'Policy number',
-  named_insured: 'Named insured',
-  coverage: 'Coverage',
-  loss_date: 'Date of loss',
-  report_date: 'Reported',
-  cause_of_loss: 'Cause',
-  police_report_number: 'Police report',
-  third_party_involved: 'Third party involved',
-  injury_indicated_on_form: 'On loss notice',
-  injury_mentioned_in_correspondence: 'In correspondence',
-  vehicle_year: 'Year',
-  vehicle_make: 'Make',
-  vehicle_model: 'Model',
-  vin_reported: 'VIN on notice',
-  vin_on_estimate: 'VIN on estimate',
-  estimate_number: 'Estimate number',
-  estimate_parts: 'Parts',
-  estimate_labor: 'Labor',
-  estimate_materials: 'Paint materials',
-  estimate_tax: 'Tax',
-  estimate_total: 'Grand total',
-};
-
-const BOOLEAN_FIELDS = new Set([
-  'injury_indicated_on_form',
-  'injury_mentioned_in_correspondence',
-  'third_party_involved',
-]);
-
 @Component({
-  selector: 'app-claim-workbench',
+  selector: 'app-workbench',
   standalone: true,
-  templateUrl: './claim-workbench.component.html',
-  styleUrl: './claim-workbench.component.css',
+  templateUrl: './workbench.component.html',
+  styleUrl: './workbench.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
-  private readonly claims = inject(ClaimsApiService);
+export class WorkbenchComponent implements OnInit, OnDestroy {
+  private readonly claims = inject(ReviewApiService);
   private readonly intake = inject(IntakeApiService);
   private readonly sanitizer = inject(DomSanitizer);
   private objectUrl: string | null = null;
@@ -111,7 +73,7 @@ export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
   readonly back = output();
   readonly completed = output<string>();
 
-  protected readonly bench = signal<ClaimWorkbench | null>(null);
+  protected readonly bench = signal<Workbench | null>(null);
   protected readonly page = signal(1);
   protected readonly pdfUrl = signal<SafeResourceUrl | null>(null);
   protected readonly busy = signal(false);
@@ -124,6 +86,7 @@ export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
   protected readonly rerouteReason = signal('');
 
   protected readonly item = computed(() => this.bench()?.item ?? null);
+  protected readonly pack = computed(() => PACKS[this.bench()?.document_type ?? 'CLAIM_PACKET']);
   protected readonly queueLabel = computed(() => {
     const current = this.item();
     return current ? QUEUE_LABELS[current.route.review_queue] : '';
@@ -146,41 +109,18 @@ export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
     })),
   );
   protected readonly groups = computed<readonly FieldGroup[]>(() => {
+    const pack = this.pack();
     const fields = new Map((this.bench()?.fields ?? []).map((field) => [field.name, field]));
-    const value = (name: string): unknown => fields.get(name)?.value ?? null;
-    const injuryConflict =
-      value('injury_indicated_on_form') === false &&
-      value('injury_mentioned_in_correspondence') === true;
-    const reported = value('vin_reported');
-    const estimate = value('vin_on_estimate');
-    const vinConflict =
-      typeof reported === 'string' && typeof estimate === 'string' && reported !== estimate;
-    return GROUPS.map(([title, names]) => ({
-      title,
-      rows: names
-        .map((name) => fields.get(name))
-        .filter((field): field is ClaimField => field !== undefined)
-        .map((field) => ({
-          name: field.name,
-          label: LABELS[field.name] ?? field.name,
-          display: this.display(field),
-          confidence:
-            field.confidence === null
-              ? null
-              : `${String(Math.round(Number(field.confidence) * 100))}%`,
-          page: field.source_page,
-          evidence: field.evidence_excerpt,
-          reviewed: field.reviewed,
-          conflict:
-            (injuryConflict && title === 'Injury') ||
-            (vinConflict && (field.name === 'vin_reported' || field.name === 'vin_on_estimate')),
-          kind: BOOLEAN_FIELDS.has(field.name)
-            ? ('boolean' as const)
-            : field.name === 'coverage'
-              ? ('coverage' as const)
-              : ('text' as const),
-        })),
-    })).filter((group) => group.rows.length > 0);
+    const conflicts = new Set(pack.conflicts((name) => fields.get(name)?.value ?? null));
+    return pack.groups
+      .map(([title, names]) => ({
+        title,
+        rows: names
+          .map((name) => fields.get(name))
+          .filter((field): field is WorkField => field !== undefined)
+          .map((field) => this.row(field, conflicts.has(field.name))),
+      }))
+      .filter((group) => group.rows.length > 0);
   });
   protected readonly corrections = computed<readonly FieldCorrection[]>(() =>
     Object.entries(this.drafts()).map(([field, newValue]) => ({
@@ -203,10 +143,12 @@ export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
   );
   protected readonly canApprove = computed(() => this.role() === 'APPROVER');
   protected readonly rerouteTargets = computed(() =>
-    QUEUE_ORDER.filter((queue) => queue !== this.item()?.route.review_queue).map((queue) => ({
-      value: queue,
-      label: QUEUE_LABELS[queue],
-    })),
+    this.pack()
+      .queues.filter((queue) => queue !== this.item()?.route.review_queue)
+      .map((queue) => ({
+        value: queue,
+        label: QUEUE_LABELS[queue],
+      })),
   );
 
   ngOnInit(): void {
@@ -259,7 +201,9 @@ export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
 
   protected setRerouteQueue(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
-    this.rerouteQueue.set(QUEUE_ORDER.includes(value as ReviewQueue) ? (value as ReviewQueue) : '');
+    this.rerouteQueue.set(
+      this.pack().queues.includes(value as ReviewQueue) ? (value as ReviewQueue) : '',
+    );
   }
 
   protected takeTask(): void {
@@ -312,10 +256,10 @@ export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
           this.busy.set(false);
           this.completed.emit(
             decision === 'APPROVE'
-              ? 'Claim intake approved.'
+              ? `Approved the ${this.pack().singular}.`
               : decision === 'REJECT'
-                ? 'Claim rejected.'
-                : 'Corrections submitted; the claim is being re-checked.',
+                ? `Rejected the ${this.pack().singular}.`
+                : `Corrections submitted; the ${this.pack().singular} is being re-checked.`,
           );
         },
         error: () => {
@@ -350,8 +294,9 @@ export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
         this.bench.set(bench);
         this.busy.set(false);
         if (withPdf) {
+          const focus = PACKS[bench.document_type].focusField;
           const conflictPage = bench.fields.find(
-            (field) => field.name === 'injury_mentioned_in_correspondence' && field.value === true,
+            (field) => field.name === focus && field.value !== null && field.value !== false,
           )?.source_page;
           this.page.set(conflictPage ?? 1);
           this.loadPdf(bench.item.document_id);
@@ -359,7 +304,7 @@ export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.busy.set(false);
-        this.error.set('This claim could not be loaded.');
+        this.error.set('This task could not be loaded.');
       },
     });
   }
@@ -372,7 +317,7 @@ export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
         this.updatePdfUrl();
       },
       error: () => {
-        this.error.set('The claim packet PDF could not be loaded.');
+        this.error.set('The packet PDF could not be loaded.');
       },
     });
   }
@@ -387,16 +332,45 @@ export class ClaimWorkbenchComponent implements OnInit, OnDestroy {
     );
   }
 
-  private display(field: ClaimField): string {
+  private row(field: WorkField, conflict: boolean): FieldRow {
+    const pack = this.pack();
+    const kind = pack.kinds[field.name] ?? 'text';
+    const values = Array.isArray(field.value) ? (field.value as readonly unknown[]) : [];
+    return {
+      name: field.name,
+      label: pack.labels[field.name] ?? field.name,
+      display: kind === 'list' ? `${String(values.length)} items` : this.display(field, kind),
+      confidence:
+        field.confidence === null ? null : `${String(Math.round(Number(field.confidence) * 100))}%`,
+      page: field.source_page,
+      evidence: field.evidence_excerpt,
+      reviewed: field.reviewed,
+      conflict,
+      kind,
+      items: values.map((value, index) => {
+        const item = (value ?? {}) as Readonly<Record<string, unknown>>;
+        const evidence = field.items?.[index];
+        const asset = scalarText(item['asset_type']);
+        return {
+          key: `${field.name}-${String(index)}`,
+          asset: ASSET_LABELS[asset] ?? asset,
+          quantity: scalarText(item['quantity']),
+          description: scalarText(item['description']),
+          due: formatDate(item['due_date'] === null ? null : scalarText(item['due_date'])),
+          page: evidence?.source_page ?? null,
+          evidence: evidence?.evidence_excerpt ?? null,
+        };
+      }),
+    };
+  }
+
+  private display(field: WorkField, kind: FieldKind): string {
     const value = field.value;
     if (value === null || value === undefined || value === '') return '—';
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-    if (field.name.startsWith('estimate_') && field.name !== 'estimate_number') {
-      return formatMoney(scalarText(value));
-    }
-    if (field.name === 'loss_date' || field.name === 'report_date')
-      return formatDate(scalarText(value));
-    if (field.name === 'coverage') return value === 'COLLISION' ? 'Collision' : 'Comprehensive';
+    if (kind === 'money') return formatMoney(scalarText(value));
+    if (kind === 'date') return formatDate(scalarText(value));
+    if (kind === 'coverage') return value === 'COLLISION' ? 'Collision' : 'Comprehensive';
     return scalarText(value);
   }
 }

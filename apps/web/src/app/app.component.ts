@@ -20,9 +20,9 @@ import {
   ReviewTask,
   SessionIdentity,
 } from './intake-api.service';
-import { ClaimWorkbenchComponent } from './claims/claim-workbench.component';
-import { ClaimsIntakeComponent } from './claims/claims-intake.component';
-import { ClaimsQueueComponent } from './claims/claims-queue.component';
+import { WorkbenchComponent } from './work/workbench.component';
+import { PacketIntakeComponent } from './work/packet-intake.component';
+import { WorkQueueComponent } from './work/work-queue.component';
 import { StatusBadgeComponent } from './status-badge.component';
 
 type View = 'intake' | 'documents' | 'review' | 'claims-intake' | 'claims-queue' | 'claim';
@@ -40,12 +40,7 @@ interface EditableField {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [
-    StatusBadgeComponent,
-    ClaimsIntakeComponent,
-    ClaimsQueueComponent,
-    ClaimWorkbenchComponent,
-  ],
+  imports: [StatusBadgeComponent, PacketIntakeComponent, WorkQueueComponent, WorkbenchComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

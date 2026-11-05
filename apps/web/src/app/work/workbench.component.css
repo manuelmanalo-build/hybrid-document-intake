@@ -199,3 +199,37 @@ summary {
   font-weight: 500;
   font-size: 0.9rem;
 }
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.35rem 0;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+}
+.list.conflict {
+  background: #fdf3e8;
+  outline: 2px solid var(--claims-attention-line);
+}
+.list table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.list th {
+  padding: 0.3rem 0.4rem;
+  border-bottom: 1px solid var(--claims-line);
+  color: var(--claims-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+}
+.list td {
+  padding: 0.35rem 0.4rem;
+  border-bottom: 1px solid var(--claims-line-soft);
+  vertical-align: top;
+}
+.list .number {
+  text-align: right;
+}

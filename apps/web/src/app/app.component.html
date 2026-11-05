@@ -76,7 +76,7 @@
     [attr.aria-current]="activeView() === 'claims-intake' ? 'page' : null"
     (click)="navigate('claims-intake')"
   >
-    Claims intake
+    Packet intake
   </button>
   @if (canReview()) {
     <button
@@ -85,7 +85,7 @@
       [attr.aria-current]="activeView() === 'claims-queue' ? 'page' : null"
       (click)="navigate('claims-queue')"
     >
-      Claim queues
+      Work queues
     </button>
   }
 </nav>
@@ -104,18 +104,18 @@
 
 <main id="main-content">
   @if (activeView() === 'claims-intake') {
-    <app-claims-intake
+    <app-packet-intake
       [token]="accessToken()"
       [canSubmit]="canSubmit()"
       (openQueues)="navigate('claims-queue')"
     />
   }
   @if (activeView() === 'claims-queue') {
-    <app-claims-queue [token]="accessToken()" (openClaim)="openClaim($event)" />
+    <app-work-queue [token]="accessToken()" (openTask)="openClaim($event)" />
   }
   @if (activeView() === 'claim') {
     @if (selectedClaimTask(); as taskId) {
-      <app-claim-workbench
+      <app-workbench
         [taskId]="taskId"
         [token]="accessToken()"
         [role]="identity()?.role ?? null"

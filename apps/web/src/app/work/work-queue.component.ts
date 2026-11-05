@@ -13,20 +13,21 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { interval } from 'rxjs';
 
 import {
+  PACKS,
   QUEUE_LABELS,
-  QUEUE_ORDER,
   SERVICE_LEVEL_LABELS,
   flagLabel,
   formatDate,
   formatMinutes,
   formatMoney,
-} from './claim-labels';
+} from './work-labels';
 import {
-  ClaimQueueItem,
-  ClaimQueueView,
-  ClaimsApiService,
+  PackType,
+  ReviewQueueItem,
+  ReviewQueueView,
+  ReviewApiService,
   ReviewQueue,
-} from './claims-api.service';
+} from './review-api.service';
 
 const REFRESH_MS = 60_000;
 
@@ -37,20 +38,25 @@ interface QueueTab {
 }
 
 @Component({
-  selector: 'app-claims-queue',
+  selector: 'app-work-queue',
   standalone: true,
-  templateUrl: './claims-queue.component.html',
-  styleUrl: './claims-queue.component.css',
+  templateUrl: './work-queue.component.html',
+  styleUrl: './work-queue.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ClaimsQueueComponent implements OnInit {
-  private readonly api = inject(ClaimsApiService);
+export class WorkQueueComponent implements OnInit {
+  private readonly api = inject(ReviewApiService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly token = input('');
-  readonly openClaim = output<string>();
+  readonly initialType = input<PackType>('CLAIM_PACKET');
+  readonly openTask = output<string>();
 
-  protected readonly view = signal<ClaimQueueView | null>(null);
+  protected readonly packType = signal<PackType>('CLAIM_PACKET');
+  protected readonly pack = computed(() => PACKS[this.packType()]);
+  protected readonly packOptions = Object.values(PACKS);
+
+  protected readonly view = signal<ReviewQueueView | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly active = signal<ReviewQueue | 'ALL'>('ALL');
@@ -60,7 +66,11 @@ export class ClaimsQueueComponent implements OnInit {
     const total = this.view()?.items.length ?? 0;
     return [
       { key: 'ALL', label: 'All', count: total },
-      ...QUEUE_ORDER.map((key) => ({ key, label: QUEUE_LABELS[key], count: counts[key] ?? 0 })),
+      ...this.pack().queues.map((key) => ({
+        key,
+        label: QUEUE_LABELS[key],
+        count: counts[key] ?? 0,
+      })),
     ];
   });
   protected readonly rows = computed(() => {
@@ -84,6 +94,7 @@ export class ClaimsQueueComponent implements OnInit {
   protected readonly duration = formatMinutes;
 
   ngOnInit(): void {
+    this.packType.set(this.initialType());
     this.refresh();
     interval(REFRESH_MS)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -94,28 +105,36 @@ export class ClaimsQueueComponent implements OnInit {
 
   protected refresh(): void {
     this.loading.set(true);
-    this.api.queue(this.token()).subscribe({
+    this.api.queue(this.packType(), this.token()).subscribe({
       next: (view) => {
         this.view.set(view);
         this.error.set(null);
         this.loading.set(false);
       },
       error: () => {
-        this.error.set('Claim queues are unavailable. Connect as a reviewer or approver.');
+        this.error.set('Work queues are unavailable. Connect as a reviewer or approver.');
         this.loading.set(false);
       },
     });
+  }
+
+  protected choosePack(type: PackType): void {
+    if (type === this.packType()) return;
+    this.packType.set(type);
+    this.active.set('ALL');
+    this.view.set(null);
+    this.refresh();
   }
 
   protected pick(key: ReviewQueue | 'ALL'): void {
     this.active.set(key);
   }
 
-  protected levelLabel(item: ClaimQueueItem): string {
+  protected levelLabel(item: ReviewQueueItem): string {
     return SERVICE_LEVEL_LABELS[item.service_level.status];
   }
 
-  protected levelDetail(item: ClaimQueueItem): string {
+  protected levelDetail(item: ReviewQueueItem): string {
     const level = item.service_level;
     const target = formatMinutes(level.target_minutes);
     if (level.status === 'OVERDUE')
@@ -124,7 +143,7 @@ export class ClaimsQueueComponent implements OnInit {
     return `${formatMinutes(level.minutes_remaining)} left of ${target}`;
   }
 
-  protected levelClass(item: ClaimQueueItem): string {
+  protected levelClass(item: ReviewQueueItem): string {
     const status = item.service_level.status;
     if (status === 'OVERDUE' || status === 'MISSED') return 'claims-chip strong';
     if (status === 'DUE_SOON') return 'claims-chip attention';

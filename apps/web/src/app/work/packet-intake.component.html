@@ -1,14 +1,15 @@
-<section class="intake" aria-labelledby="claims-intake-title">
+<section class="intake" aria-labelledby="packet-intake-title">
   <div class="heading">
-    <h2 id="claims-intake-title">Claims intake</h2>
+    <h2 id="packet-intake-title">Intake</h2>
     <p class="claims-muted">
-      Upload FNOL packets: one PDF per claim, up to 10 MB each. Scanned packets are fine.
+      Upload claim packets or campaign briefs: one PDF each, up to 10 MB. Scans are fine; each file
+      is classified and routed to the right queues automatically.
     </p>
   </div>
 
   <div class="drop claims-panel">
     <div class="drop-text">
-      <h3>Add claim packets</h3>
+      <h3>Add packets</h3>
       <p class="claims-muted">
         Each file is stored unchanged, fingerprinted with SHA-256 and checked for an identical
         earlier upload. Files that are not PDFs or are over the size limit are rejected and logged.
@@ -18,9 +19,9 @@
       }
     </div>
     <div class="picker">
-      <label for="claim-packets">Choose PDFs</label>
+      <label for="packets">Choose PDFs</label>
       <input
-        id="claim-packets"
+        id="packets"
         type="file"
         accept="application/pdf"
         multiple

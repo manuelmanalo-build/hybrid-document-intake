@@ -3,15 +3,15 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { ClaimWorkbenchComponent } from './claim-workbench.component';
-import { workbench } from './claims-fixtures.spec-helpers';
+import { WorkbenchComponent } from './workbench.component';
+import { briefWorkbench, workbench } from './work-fixtures.spec-helpers';
 
-describe('ClaimWorkbenchComponent', () => {
+describe('WorkbenchComponent', () => {
   let http: HttpTestingController;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ClaimWorkbenchComponent],
+      imports: [WorkbenchComponent],
       providers: [provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
@@ -24,14 +24,14 @@ describe('ClaimWorkbenchComponent', () => {
   function render(
     claimedBy: string | null,
     role = 'APPROVER',
-  ): ComponentFixture<ClaimWorkbenchComponent> {
-    const fixture = TestBed.createComponent(ClaimWorkbenchComponent);
+  ): ComponentFixture<WorkbenchComponent> {
+    const fixture = TestBed.createComponent(WorkbenchComponent);
     fixture.componentRef.setInput('taskId', 'task-c10');
     fixture.componentRef.setInput('token', 'approver-token');
     fixture.componentRef.setInput('role', role);
     fixture.componentRef.setInput('userId', 'approver-1');
     fixture.detectChanges();
-    http.expectOne('/api/v1/claims/task-c10').flush(workbench(claimedBy));
+    http.expectOne('/api/v1/review-queues/tasks/task-c10').flush(workbench(claimedBy));
     http.expectOne('/api/v1/documents/doc-c10/content').flush(new Blob(['%PDF-1.7']));
     fixture.detectChanges();
     return fixture;
@@ -73,7 +73,7 @@ describe('ClaimWorkbenchComponent', () => {
       .find((button) => button.textContent.includes('Re-route claim'))
       ?.click();
 
-    const request = http.expectOne('/api/v1/claims/task-c10/reroute');
+    const request = http.expectOne('/api/v1/review-queues/tasks/task-c10/reroute');
     expect(request.request.body).toEqual({
       to_queue: 'DESK_ADJUSTER',
       reason: 'Injury is minor; handle at the desk.',
@@ -85,7 +85,7 @@ describe('ClaimWorkbenchComponent', () => {
       routed_by: 'REVIEWER',
       routing_version: null,
     });
-    http.expectOne('/api/v1/claims/task-c10').flush(workbench('approver-1'));
+    http.expectOne('/api/v1/review-queues/tasks/task-c10').flush(workbench('approver-1'));
     fixture.detectChanges();
     expect(element.textContent).toContain('Re-routed to Desk adjuster.');
   });
@@ -121,5 +121,28 @@ describe('ClaimWorkbenchComponent', () => {
       ],
     });
     request.flush({});
+  });
+
+  it('shows a brief with its deliverables and the email that moves the launch', () => {
+    const fixture = TestBed.createComponent(WorkbenchComponent);
+    fixture.componentRef.setInput('taskId', 'task-b12');
+    fixture.componentRef.setInput('role', 'REVIEWER');
+    fixture.componentRef.setInput('userId', 'reviewer-1');
+    fixture.detectChanges();
+    http.expectOne('/api/v1/review-queues/tasks/task-b12').flush(briefWorkbench());
+    http.expectOne('/api/v1/documents/doc-b12/content').flush(new Blob(['%PDF-1.7']));
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('#route-title')?.textContent).toContain('Rush review');
+    expect(element.textContent).toContain('Lead time at risk');
+    expect(element.textContent).toContain('Video :15');
+    expect(element.textContent).toContain('Routine posts');
+    expect(element.querySelectorAll('.field.conflict')).toHaveLength(2);
+    expect(element.querySelector('iframe')?.getAttribute('title')).toContain('page 2');
+    const reroute = element.querySelector<HTMLSelectElement>('#reroute-queue');
+    const options = Array.from(reroute?.options ?? []).map((option) => option.value);
+    expect(options).toContain('TRAFFIC_REVIEW');
+    expect(options).not.toContain('FAST_TRACK');
   });
 });

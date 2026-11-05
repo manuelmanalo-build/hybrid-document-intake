@@ -42,13 +42,13 @@ interface IntakeFile {
 }
 
 @Component({
-  selector: 'app-claims-intake',
+  selector: 'app-packet-intake',
   standalone: true,
-  templateUrl: './claims-intake.component.html',
-  styleUrl: './claims-intake.component.css',
+  templateUrl: './packet-intake.component.html',
+  styleUrl: './packet-intake.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ClaimsIntakeComponent implements OnInit {
+export class PacketIntakeComponent implements OnInit {
   private readonly api = inject(IntakeApiService);
   private readonly destroyRef = inject(DestroyRef);
   private uploading = false;
@@ -202,13 +202,15 @@ export function progressFrom(detail: DocumentDetail): Partial<IntakeFile> {
     return { kind: 'PROBLEM', result: 'Processing failed; see audit trail' };
   }
   if (any('extract_invoice_')) {
-    return { kind: 'READY', done: 6, result: 'Not a claim: classified as an invoice' };
+    return { kind: 'READY', done: 6, result: 'Not a claim or brief: classified as an invoice' };
   }
   const reached = [
     true,
     completed.has('classify_document'),
-    completed.has('segment_claim_packet'),
-    any('extract_claim_'),
+    any('segment_'),
+    [...completed].some(
+      (name) => name.startsWith('extract_') && !name.startsWith('extract_invoice_'),
+    ),
     detail.authoritative_validation.length > 0,
     detail.review !== null,
   ];
@@ -218,7 +220,7 @@ export function progressFrom(detail: DocumentDetail): Partial<IntakeFile> {
     '',
     'Classifying document',
     'Labeling pages',
-    'Extracting claim fields',
+    'Extracting fields',
     'Checking rules',
     'Routing to a queue',
   ];

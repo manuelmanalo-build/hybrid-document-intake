@@ -24,6 +24,14 @@ from intake_api.application.claims_reference import (
     parse_policies,
     parse_vehicles,
 )
+from intake_api.application.identity import configured_actor
+from intake_api.application.problems import InvalidUpload
+from intake_api.application.review import (
+    CompleteReviewCommand,
+    FieldCorrectionCommand,
+    ReviewService,
+)
+from intake_api.application.review_queues import RerouteCommand, ReviewQueueService
 from intake_api.domain.enums import (
     ReviewQueue,
     UserRole,
@@ -266,3 +274,105 @@ async def test_brief_is_segmented_extracted_routed_and_deduplicated(
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _add_users(app: object, *roles: UserRole) -> None:
+    settings = app.state.settings  # type: ignore[attr-defined]
+    with app.state.session_factory() as session, session.begin():  # type: ignore[attr-defined]
+        for role in roles:
+            actor = configured_actor(settings, role)
+            session.add(
+                User(
+                    id=actor.user_id,
+                    tenant_id=actor.tenant_id,
+                    external_subject=actor.subject,
+                    display_name=actor.subject,
+                    role=actor.role,
+                )
+            )
+
+
+@pytest.mark.asyncio
+async def test_generic_review_queue_api_serves_briefs(
+    api: tuple[TestClient, object], database_url: str
+) -> None:
+    client, app = api
+    first = _upload(client, "B01_brief.pdf", "queue-b01")
+    copy = _upload(client, "B14_brief.pdf", "queue-b14")
+    settings = _graph_settings(app, database_url)
+    await _dispatch_runs(settings, 2)
+    _add_users(app, UserRole.REVIEWER, UserRole.APPROVER)
+    app_settings = app.state.settings  # type: ignore[attr-defined]
+    reviewer = configured_actor(app_settings, UserRole.REVIEWER)
+    approver = configured_actor(app_settings, UserRole.APPROVER)
+    auth = {"Authorization": "Bearer integration-reviewer"}
+
+    response = client.get("/api/v1/review-queues?document_type=CAMPAIGN_BRIEF", headers=auth)
+    assert response.status_code == 200, response.text
+    view = response.json()
+    assert view["document_type"] == "CAMPAIGN_BRIEF"
+    assert len(view["items"]) == 2
+    assert view["counts_by_queue"]["READY_FOR_PLANNING"] == 1
+    assert view["counts_by_queue"]["DUPLICATE_REVIEW"] == 1
+    assert "FAST_TRACK" not in view["counts_by_queue"]
+    summary = next(item for item in view["items"] if item["document_id"] == str(first))["summary"]
+    assert summary["party"] == "Harbor & Vine Coffee Co. · Harbor & Vine"
+    assert (summary["subject"], summary["event_label"], summary["item_count"]) == (
+        "Winter Warmers",
+        "Launch",
+        3,
+    )
+    claims_view = client.get("/api/v1/review-queues?document_type=CLAIM_PACKET", headers=auth)
+    assert claims_view.json()["items"] == []
+
+    service = ReviewQueueService(app_settings, app.state.session_factory)  # type: ignore[attr-defined]
+    items = {
+        item.document_id: item
+        for item in service.list_queue(reviewer, document_type="CAMPAIGN_BRIEF").items
+    }
+    bench = service.workbench(items[first].review_task_id, reviewer)
+    assert bench.document_type == "CAMPAIGN_BRIEF"
+    assert len(bench.rules) == 14
+    assert next(rule for rule in bench.rules if rule.rule_id == "CB-007").name
+    deliverables = next(field for field in bench.fields if field.name == "deliverables")
+    assert deliverables.items is not None
+    assert len(deliverables.items) == 3
+    assert deliverables.items[0].source_page == 1
+
+    with pytest.raises(InvalidUpload):
+        service.reroute(
+            items[copy].review_task_id,
+            RerouteCommand(to_queue=ReviewQueue.FAST_TRACK, reason="Not a brief queue"),
+            reviewer,
+        )
+    moved = service.reroute(
+        items[copy].review_task_id,
+        RerouteCommand(
+            to_queue=ReviewQueue.TRAFFIC_REVIEW, reason="Client confirmed a new flight."
+        ),
+        reviewer,
+    )
+    assert moved.review_queue == ReviewQueue.TRAFFIC_REVIEW
+
+    reviews = ReviewService(app_settings, app.state.session_factory)  # type: ignore[attr-defined]
+    task_id = items[first].review_task_id
+    reviews.claim(task_id, approver)
+    reviews.complete(
+        task_id,
+        CompleteReviewCommand(
+            decision="REQUEST_CORRECTION",
+            reason="Client raised the budget.",
+            field_corrections=[
+                FieldCorrectionCommand(
+                    field="budget_total", new_value="500000", reason="Revised budget"
+                )
+            ],
+        ),
+        approver,
+    )
+    await _dispatch_resume(settings)
+
+    revalidated = service.workbench(task_id, reviewer)
+    assert revalidated.review_cycle == 2
+    assert revalidated.item.route.review_queue == ReviewQueue.SCOPE_REVIEW
+    assert "OVER_SOW_BUDGET" in revalidated.item.route.flags

@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DocumentDetail } from '../intake-api.service';
-import { ClaimsIntakeComponent, progressFrom } from './claims-intake.component';
+import { PacketIntakeComponent, progressFrom } from './packet-intake.component';
 
 function detail(tools: readonly string[], extras: Partial<DocumentDetail> = {}): DocumentDetail {
   return {
@@ -50,9 +50,17 @@ describe('claims intake progress', () => {
     ).toMatchObject({ kind: 'READY', done: 6 });
   });
 
+  it('tracks brief packets through the same steps', () => {
+    expect(
+      progressFrom(
+        detail(['classify_document', 'segment_brief_packet', 'extract_brief_from_text']),
+      ),
+    ).toMatchObject({ done: 4, result: 'Checking rules' });
+  });
+
   it('reports invoices and failures honestly', () => {
     expect(progressFrom(detail(['classify_document', 'extract_invoice_from_text']))).toMatchObject({
-      result: 'Not a claim: classified as an invoice',
+      result: 'Not a claim or brief: classified as an invoice',
     });
     const failed = detail([]);
     expect(
@@ -61,12 +69,12 @@ describe('claims intake progress', () => {
   });
 });
 
-describe('ClaimsIntakeComponent', () => {
+describe('PacketIntakeComponent', () => {
   let http: HttpTestingController;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ClaimsIntakeComponent],
+      imports: [PacketIntakeComponent],
       providers: [provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
@@ -77,12 +85,12 @@ describe('ClaimsIntakeComponent', () => {
   });
 
   it('uploads each chosen packet with its own idempotency key and reports rejections', () => {
-    const fixture = TestBed.createComponent(ClaimsIntakeComponent);
+    const fixture = TestBed.createComponent(PacketIntakeComponent);
     fixture.componentRef.setInput('token', 'submitter-token');
     fixture.componentRef.setInput('canSubmit', true);
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
-    const input = element.querySelector<HTMLInputElement>('#claim-packets');
+    const input = element.querySelector<HTMLInputElement>('#packets');
     if (!input) throw new Error('file input missing');
     const files = [
       new File(['%PDF-1.7'], 'C01_packet.pdf', { type: 'application/pdf' }),
