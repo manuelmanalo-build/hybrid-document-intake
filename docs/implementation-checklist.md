@@ -145,3 +145,15 @@ implementations.
 - [x] Add the opt-in live briefs diagnostic: segmentation, fields, deliverables, queue agreement, and
   the zero-false-ready gate.
 
+## CDP onboarding slice (ADR 0010)
+
+- [x] Record the CDP onboarding decision, scope, personal-data scanning and redaction design,
+  CD-001 through CD-015, and `cdp-routing-v1`.
+- [x] Add the 20-packet synthetic onboarding set, its generator, and integrity tests.
+- [ ] Add the deterministic PII scanner and redactor (`pii-scanner-v1`) with per-page findings.
+- [ ] Add the CDP pack: contracts with a mappings list, extraction, agreement, attribute, and
+  connector reference tables, `lookup_data_agreement`, rules, routing, and confidence.
+- [ ] Extend the review API and screens with the mapping table and mapping corrections.
+- [ ] Emit the `onboarding-plan-v1` outbox payload.
+- [ ] Add the live CDP diagnostic with both hard gates.
+

@@ -1,0 +1,8 @@
+connector_type,label,cadences,min_business_days
+SHOPIFY,Shopify,HOURLY;DAILY,5
+SALESFORCE_CRM,Salesforce CRM,HOURLY;DAILY,8
+SFTP_CSV,SFTP CSV drop,DAILY;WEEKLY;ONE_TIME,3
+SNOWFLAKE_SHARE,Snowflake data share,HOURLY;DAILY,10
+GA4,Google Analytics 4,DAILY,5
+BRAZE,Braze,REALTIME;HOURLY,7
+REST_WEBHOOK,REST webhook,REALTIME,12
