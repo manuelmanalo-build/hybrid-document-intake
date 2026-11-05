@@ -142,4 +142,6 @@ implementations.
 - [x] Emit a work-request outbox payload (`work-request-v1`) with one task per deliverable.
 - [x] Draft clarifying questions for incomplete briefs for a reviewer to edit and send, and record
   what was sent (migration 0008, `CLIENT_QUESTIONS_SENT` audit).
+- [x] Add the opt-in live briefs diagnostic: segmentation, fields, deliverables, queue agreement, and
+  the zero-false-ready gate.
 
