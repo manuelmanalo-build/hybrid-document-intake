@@ -44,6 +44,12 @@ def downgrade() -> None:
     op.create_check_constraint(
         "audit_event_type",
         "audit_events",
-        _events([e.value for e in AuditEventType if e != ADDED]),
+        _events(
+            [
+                e.value
+                for e in AuditEventType
+                if e not in (ADDED, AuditEventType.CDP_REFERENCE_DATA_LOADED)
+            ]
+        ),
     )
     Base.metadata.tables["brief_client_requests"].drop(bind=bind, checkfirst=False)

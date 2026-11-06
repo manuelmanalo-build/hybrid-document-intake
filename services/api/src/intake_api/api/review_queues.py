@@ -18,7 +18,7 @@ from intake_api.application.review_queues import (
 from intake_api.domain.enums import ReviewQueue
 
 router = APIRouter(prefix="/api/v1/review-queues", tags=["review-queues"])
-QueueDocumentType = Literal["CLAIM_PACKET", "CAMPAIGN_BRIEF"]
+QueueDocumentType = Literal["CLAIM_PACKET", "CAMPAIGN_BRIEF", "CDP_ONBOARDING"]
 
 
 def get_review_queue_service(request: Request) -> ReviewQueueService:

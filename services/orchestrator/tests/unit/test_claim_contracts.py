@@ -174,4 +174,9 @@ def test_claim_tools_extend_the_registry_without_changing_the_invoice_prompt() -
         "extract_brief_from_text",
         "extract_brief_from_visual_content",
         "lookup_client_sow",
+        "scan_onboarding_packet",
+        "segment_onboarding_packet",
+        "extract_onboarding_from_text",
+        "extract_onboarding_from_visual_content",
+        "lookup_data_agreement",
     }

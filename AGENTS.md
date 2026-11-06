@@ -7,7 +7,7 @@ graph and a bounded LangChain agent subgraph. Supported document types are AP in
 [ADR 0008](docs/adr/0008-claim-packet-document-type.md), personal-auto claim packets; and, per
 [ADR 0009](docs/adr/0009-campaign-brief-document-type-and-domain-packs.md), agency campaign briefs; and, per
 [ADR 0010](docs/adr/0010-cdp-onboarding-document-type.md), CDP data-source onboarding requests
-(design and fixtures only so far). The deterministic application boundary is always
+(pack implemented; mapping workbench in progress). The deterministic application boundary is always
 authoritative. The model proposes tool calls and a recommendation; it never approves, rejects, or
 performs an external side effect.
 
@@ -65,7 +65,11 @@ ADR 0008 adds the claim-packet tools:
 - `lookup_policy_vehicle`
 
 ADR 0009 adds the campaign-brief tools: `segment_brief_packet`, `extract_brief_from_text`,
-`extract_brief_from_visual_content`, and `lookup_client_sow`.
+`extract_brief_from_visual_content`, and `lookup_client_sow`. ADR 0010 adds the CDP-onboarding tools:
+`scan_onboarding_packet` (deterministic, runs first), `segment_onboarding_packet`,
+`extract_onboarding_from_text`, `extract_onboarding_from_visual_content`, and
+`lookup_data_agreement`. Packet text containing personal identifiers is redacted before any model
+call in a CDP run.
 
 Invoice-specific tools require an `AP_INVOICE` classification and claim-specific tools require a
 `CLAIM_PACKET` classification. The policy guard enforces this, not the prompt.

@@ -39,7 +39,7 @@ def downgrade() -> None:
             "Cannot downgrade 0006: re-route audit events exist; restore from backup instead"
         )
     op.drop_constraint("audit_event_type", "audit_events", type_="check")
-    later = {AuditEventType.BRIEF_REFERENCE_DATA_LOADED, AuditEventType.CLIENT_QUESTIONS_SENT}
+    later = {AuditEventType.BRIEF_REFERENCE_DATA_LOADED, AuditEventType.CLIENT_QUESTIONS_SENT, AuditEventType.CDP_REFERENCE_DATA_LOADED}
     previous = [
         member for member in AuditEventType if member not in ADDED_AUDIT_EVENTS | later
     ]

@@ -7,6 +7,7 @@ from typing import cast
 from pydantic import BaseModel
 
 from intake_api.application.brief_corrections import normalize_brief_correction
+from intake_api.application.cdp_corrections import normalize_cdp_correction
 from intake_api.application.claim_corrections import normalize_claim_correction
 from intake_api.application.problems import ResourceNotFound
 from intake_api.domain.enums import ReviewQueue
@@ -17,6 +18,7 @@ CorrectionNormalizer = Callable[[str, str | None], object]
 CORRECTION_NORMALIZERS: Mapping[str, CorrectionNormalizer] = {
     "CLAIM_PACKET": normalize_claim_correction,
     "CAMPAIGN_BRIEF": normalize_brief_correction,
+    "CDP_ONBOARDING": normalize_cdp_correction,
 }
 
 
@@ -80,6 +82,21 @@ def _brief_summary(data: Mapping[str, object]) -> ItemSummary:
     )
 
 
+def _cdp_summary(data: Mapping[str, object]) -> ItemSummary:
+    mappings = data.get("mappings")
+    connector = _text(data.get("connector_type"))
+    return ItemSummary(
+        reference=_text(data.get("agreement_number_stated")),
+        party=_text(data.get("client_name")),
+        subject=_text(data.get("source_name")),
+        event_label="Go-live",
+        event_date=_text(data.get("go_live_in_correspondence") or data.get("requested_go_live")),
+        context=connector.replace("_", " ").title() if connector else None,
+        amount=None,
+        item_count=len(cast(list[object], mappings)) if isinstance(mappings, list) else None,
+    )
+
+
 def _claim_hours(settings: Settings, queue: ReviewQueue) -> int:
     return {
         ReviewQueue.FAST_TRACK: settings.claims_sla_fast_track_hours,
@@ -120,9 +137,32 @@ BRIEF_QUEUES = frozenset(
     }
 )
 
+
+def _cdp_hours(settings: Settings, queue: ReviewQueue) -> int:
+    return {
+        ReviewQueue.PRIVACY_REVIEW: settings.cdp_sla_privacy_hours,
+        ReviewQueue.RUSH_REVIEW: settings.cdp_sla_rush_hours,
+        ReviewQueue.READY_TO_BUILD: settings.cdp_sla_ready_hours,
+    }.get(queue, settings.cdp_sla_standard_hours)
+
+
+CDP_QUEUES = frozenset(
+    {
+        ReviewQueue.READY_TO_BUILD,
+        ReviewQueue.NEEDS_CLIENT_INFO,
+        ReviewQueue.AGREEMENT_REVIEW,
+        ReviewQueue.PRIVACY_REVIEW,
+        ReviewQueue.MAPPING_REVIEW,
+        ReviewQueue.RUSH_REVIEW,
+        ReviewQueue.ONBOARDING_REVIEW,
+        ReviewQueue.DUPLICATE_REVIEW,
+    }
+)
+
 REVIEW_DISPLAYS: Mapping[str, ReviewDisplay] = {
     "CLAIM_PACKET": ReviewDisplay("claim-rules-v1", CLAIM_QUEUES, _claim_summary, _claim_hours),
     "CAMPAIGN_BRIEF": ReviewDisplay("brief-rules-v1", BRIEF_QUEUES, _brief_summary, _brief_hours),
+    "CDP_ONBOARDING": ReviewDisplay("cdp-rules-v1", CDP_QUEUES, _cdp_summary, _cdp_hours),
 }
 
 

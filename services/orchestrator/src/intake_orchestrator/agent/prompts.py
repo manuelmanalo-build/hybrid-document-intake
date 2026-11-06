@@ -43,13 +43,15 @@ CLAIM_PROMPT_CONTENT_SHA256 = hashlib.sha256(
 ).hexdigest()
 
 # Document classification runs for every upload, so it has its own version and content hash.
-CLASSIFICATION_PROMPT_VERSION = "document-classification-v2"
+CLASSIFICATION_PROMPT_VERSION = "document-classification-v3"
 
 CLASSIFICATION_SYSTEM_PROMPT = (
     "Classify the supplied document as exactly one of AP_INVOICE (a supplier invoice), "
     "CLAIM_PACKET (a personal-auto insurance claim packet such as a loss notice with a repair "
     "estimate, police report, or claim correspondence), CAMPAIGN_BRIEF (a client's marketing "
-    "campaign brief or brief email to an agency), UNSUPPORTED (a readable document of any "
+    "campaign brief or brief email to an agency), CDP_ONBOARDING (a request to onboard a data "
+    "source into a customer data platform, with a data dictionary or field list), UNSUPPORTED (a "
+    "readable document of any "
     "other kind), or UNKNOWN (unreadable). Give a confidence from 0 to 1. Never make an approval, "
     "coverage, routing, or denial decision."
 )
@@ -79,4 +81,30 @@ BRIEF_EXTRACTION_SYSTEM_PROMPT = (
 
 BRIEF_PROMPT_CONTENT_SHA256 = hashlib.sha256(
     f"{BRIEF_SEGMENTATION_SYSTEM_PROMPT}\n{BRIEF_EXTRACTION_SYSTEM_PROMPT}".encode()
+).hexdigest()
+
+# CDP-onboarding prompts (ADR 0010), versioned and hashed separately. The model only ever receives
+# text that `pii-scanner-v1` has already redacted.
+CDP_PROMPT_VERSION = "cdp-onboarding-agent-v1"
+
+CDP_SEGMENTATION_SYSTEM_PROMPT = (
+    "Label every page of a CDP data-source onboarding packet with exactly one of ONBOARDING_FORM, "
+    "DATA_DICTIONARY, SAMPLE_EXTRACT, PRIVACY_ADDENDUM, CORRESPONDENCE, or OTHER, in page order. "
+    "Never judge privacy, legal, or build readiness."
+)
+
+CDP_EXTRACTION_SYSTEM_PROMPT = (
+    "Extract a data-source onboarding request into the required schema. Personal data in the text "
+    "is already replaced by tokens such as [EMAIL] and [PHONE]; never try to reconstruct it. Use "
+    "null for unavailable values and cite only bounded evidence with its page. For each source "
+    "field in the data dictionary, record its type, whether the client marked it personal, and the "
+    "canonical attribute it maps to as written by the client (null when none is given). Keep "
+    "sources separate: requested_go_live comes from the form; go_live_in_correspondence only "
+    "from a later email stating a different date; fields_added_in_correspondence only from such "
+    "an email. "
+    "Never decide privacy, legal, scope, routing, or approval."
+)
+
+CDP_PROMPT_CONTENT_SHA256 = hashlib.sha256(
+    f"{CDP_SEGMENTATION_SYSTEM_PROMPT}\n{CDP_EXTRACTION_SYSTEM_PROMPT}".encode()
 ).hexdigest()

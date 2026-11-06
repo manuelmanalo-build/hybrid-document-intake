@@ -1352,3 +1352,135 @@ class BriefClientRequest(Base):
     reason_codes: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     sent_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DataAgreement(Base):
+    """Tenant-scoped client data processing agreement for the CDP slice (ADR 0010)."""
+
+    __tablename__ = "data_agreements"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "agreement_number", name="uq_data_agreements_number"),
+        ForeignKeyConstraint(["tenant_id"], ["tenants.id"], name="fk_data_agreements_tenant"),
+        CheckConstraint("end_date > start_date", name="ck_data_agreements_term_order"),
+        CheckConstraint("max_retention_days > 0", name="ck_data_agreements_retention"),
+        Index("ix_data_agreements_client", "tenant_id", "client_name"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    agreement_number: Mapped[str] = mapped_column(String(40), nullable=False)
+    client_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[SowStatus] = mapped_column(
+        enum_type(SowStatus, "data_agreement_status", 16), nullable=False
+    )
+    regions: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    lawful_bases: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    sensitive_categories: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    max_retention_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CanonicalAttribute(Base):
+    __tablename__ = "canonical_attributes"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "attribute", name="uq_canonical_attributes_name"),
+        ForeignKeyConstraint(["tenant_id"], ["tenants.id"], name="fk_canonical_attributes_tenant"),
+        CheckConstraint("entity IN ('PROFILE', 'EVENT')", name="ck_canonical_attributes_entity"),
+        CheckConstraint(
+            "personal_class IN ('NONE', 'DIRECT_IDENTIFIER', 'QUASI_IDENTIFIER', 'SENSITIVE')",
+            name="ck_canonical_attributes_personal_class",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    attribute: Mapped[str] = mapped_column(String(80), nullable=False)
+    entity: Mapped[str] = mapped_column(String(16), nullable=False)
+    data_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    personal_class: Mapped[str] = mapped_column(String(24), nullable=False)
+    identity_key: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class CdpConnector(Base):
+    __tablename__ = "cdp_connectors"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "connector_type", name="uq_cdp_connectors_type"),
+        ForeignKeyConstraint(["tenant_id"], ["tenants.id"], name="fk_cdp_connectors_tenant"),
+        CheckConstraint("min_business_days >= 0", name="ck_cdp_connectors_days"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    connector_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    cadences: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    min_business_days: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class PiiScanFinding(Base):
+    """Identifier types and counts found per page by `pii-scanner-v1`; never the values."""
+
+    __tablename__ = "pii_scan_findings"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "agent_run_id",
+            "page_number",
+            "identifier_type",
+            name="uq_pii_scan_finding",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "agent_run_id"],
+            ["agent_runs.tenant_id", "agent_runs.id"],
+            name="fk_pii_scan_findings_agent_run",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_pii_scan_findings_document",
+        ),
+        CheckConstraint(
+            "identifier_type IN ('EMAIL', 'PHONE', 'SSN', 'CARD', 'NO_TEXT_LAYER')",
+            name="ck_pii_scan_findings_type",
+        ),
+        CheckConstraint("occurrences >= 0", name="ck_pii_scan_findings_count"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    document_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    agent_run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    identifier_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
+    scanner_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class OnboardingIntakeKey(Base):
+    """Duplicate-detection key for CD-014, one per onboarding document."""
+
+    __tablename__ = "onboarding_intake_keys"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "document_id", name="uq_onboarding_intake_key_document"),
+        ForeignKeyConstraint(
+            ["tenant_id", "document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_onboarding_intake_keys_document",
+        ),
+        Index(
+            "ix_onboarding_intake_keys_lookup",
+            "tenant_id",
+            "agreement_number",
+            "connector_type",
+            "source_key",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    document_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    agreement_number: Mapped[str] = mapped_column(String(40), nullable=False)
+    connector_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    source_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[ClaimKeyStatus] = mapped_column(
+        enum_type(ClaimKeyStatus, "onboarding_intake_key_status", 16), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
