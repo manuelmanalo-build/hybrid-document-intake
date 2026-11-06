@@ -60,3 +60,20 @@ agency Meridian & Pike.
 8. **Approve and hand off.** Approve a ready brief; its outbox event carries one task per
    deliverable for the work-management tool (visible in the mock Zapier service locally).
 
+## CDP onboarding (data practice)
+
+The same screens handle the 20 synthetic onboarding packets in `test-data/cdp/packets` for the
+fictional data practice Meridian & Pike Data.
+
+1. **Work queues → Onboarding.** Queues: ready to build, needs client info, agreement review, privacy
+   review, mapping review, rush review, onboarding review, and duplicate review.
+2. **D11, the hidden personal data.** In privacy review, open Lumen Home's Braze profiles. The
+   personal-data scan panel shows 6 email addresses and 6 phone numbers on the sample-extract page;
+   the form, dictionary, and "Personal?" column all claim none. The mapping table marks `contact`
+   and `mobile` as "Not marked personal". None of those values reached the model or the database.
+3. **D06, the type mismatch.** In mapping review, `signup_date` (a date) is mapped to `loyalty_tier`
+   (text). Choose "Do not ingest" or retarget it, submit, and the request is re-checked.
+4. **D02, permitted health data.** Ready to build: Kestrel Health's agreement permits health data
+   with documented consent, so the rules do not block it.
+5. **Approve D01.** The outbox event carries the onboarding plan: mappings and five build tasks.
+

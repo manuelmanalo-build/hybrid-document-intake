@@ -81,6 +81,31 @@
       </div>
     </section>
 
+    @if (scanPages().length > 0) {
+      <section class="scan" [class.flagged]="scanFlagged()" aria-labelledby="scan-title">
+        <h3 id="scan-title">Personal-data scan</h3>
+        <p class="small">
+          The scanner redacts these before any model call; the values are never stored. Only
+          sample-extract and data-dictionary pages count toward the privacy rule.
+        </p>
+        <ul>
+          @for (entry of scanPages(); track entry.page) {
+            <li>
+              <button type="button" class="mini" (click)="showPage(entry.page)">
+                p.{{ entry.page }}
+              </button>
+              {{ entry.label }}: {{ entry.summary }}
+              @if (entry.counts) {
+                <span class="claims-chip strong">Counts for privacy review</span>
+              } @else {
+                <span class="claims-chip">Business contact details</span>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
     <div class="columns">
       <section class="claims-panel packet" aria-labelledby="packet-title">
         <div class="panel-head">
@@ -148,7 +173,88 @@
           @for (group of groups(); track group.title) {
             <h4>{{ group.title }}</h4>
             @for (row of group.rows; track row.name) {
-              @if (row.kind === 'list') {
+              @if (row.kind === 'mapping') {
+                <div class="list" [class.conflict]="row.conflict">
+                  <span class="claims-muted"
+                    >{{ row.label }} · {{ row.mappings.length }} fields</span
+                  >
+                  @if (row.mappings.length > 0) {
+                    <table class="mappings">
+                      <thead>
+                        <tr>
+                          <th scope="col">Source field</th>
+                          <th scope="col">Maps to</th>
+                          <th scope="col">Check</th>
+                          <th scope="col">Personal data</th>
+                          <th scope="col">
+                            <span class="visually-hidden">Source and correction</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (mapping of row.mappings; track mapping.key) {
+                          <tr [class.undeclared]="mapping.undeclared">
+                            <td [title]="mapping.evidence ?? ''">
+                              <span class="claims-mono">{{ mapping.source }}</span>
+                              <span class="claims-muted small block">{{ mapping.sourceType }}</span>
+                            </td>
+                            <td>
+                              <span class="claims-mono">{{ mapping.attribute }}</span>
+                              @if (mapping.identityKey) {
+                                <span class="claims-chip info">Identity key</span>
+                              }
+                            </td>
+                            <td>
+                              <span
+                                class="claims-chip"
+                                [class.attention]="mapping.check !== 'OK'"
+                                >{{
+                                  mapping.check === 'OK'
+                                    ? 'Type OK'
+                                    : mapping.check === 'TYPE_MISMATCH'
+                                      ? 'Type mismatch'
+                                      : mapping.check === 'EXCLUDED'
+                                        ? 'Not ingested'
+                                        : 'Unknown attribute'
+                                }}</span
+                              >
+                            </td>
+                            <td>
+                              {{ mapping.personalClass.replaceAll('_', ' ').toLowerCase() }}
+                              @if (mapping.undeclared) {
+                                <span class="claims-chip attention">Not marked personal</span>
+                              }
+                            </td>
+                            <td class="mapping-actions">
+                              <button
+                                type="button"
+                                class="mini"
+                                [disabled]="mapping.page === null"
+                                [attr.aria-label]="'Show source page for ' + mapping.source"
+                                (click)="showPage(mapping.page)"
+                              >
+                                p.{{ mapping.page ?? '–' }}
+                              </button>
+                              <select
+                                [attr.aria-label]="'Correct the mapping for ' + mapping.source"
+                                [value]="mappingDraft(mapping)"
+                                [disabled]="!claimedByMe()"
+                                (change)="setMapping(mapping, $event)"
+                              >
+                                <option value="">Keep</option>
+                                <option value="__exclude__">Do not ingest</option>
+                                @for (option of attributeOptions(); track option) {
+                                  <option [value]="option">{{ option }}</option>
+                                }
+                              </select>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  }
+                </div>
+              } @else if (row.kind === 'list') {
                 <div class="list" [class.conflict]="row.conflict">
                   <span class="claims-muted">{{ row.label }} · {{ row.display }}</span>
                   @if (row.items.length > 0) {

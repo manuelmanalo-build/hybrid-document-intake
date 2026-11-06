@@ -179,3 +179,134 @@ export function briefWorkbench(claimedBy: string | null = null): Workbench {
     reroutes: [],
   };
 }
+
+export function cdpWorkbench(claimedBy: string | null = null): Workbench {
+  const field = (name: string, value: unknown, page: number) => ({
+    name,
+    value,
+    confidence: '0.9300',
+    source_page: page,
+    evidence_excerpt: `Evidence for ${name}`,
+    reviewed: false,
+  });
+  return {
+    document_type: 'CDP_ONBOARDING',
+    context: {
+      attributes: {
+        customer_id: {
+          entity: 'PROFILE',
+          data_type: 'STRING',
+          personal_class: 'NONE',
+          identity_key: true,
+        },
+        email_address: {
+          entity: 'PROFILE',
+          data_type: 'EMAIL',
+          personal_class: 'DIRECT_IDENTIFIER',
+          identity_key: true,
+        },
+        loyalty_tier: {
+          entity: 'PROFILE',
+          data_type: 'STRING',
+          personal_class: 'NONE',
+          identity_key: false,
+        },
+      },
+      compatible_types: { STRING: ['STRING', 'EMAIL', 'PHONE'], DATE: ['DATE'] },
+      scan_findings: [
+        {
+          page_number: 1,
+          identifier_type: 'EMAIL',
+          occurrences: 2,
+          scanner_version: 'pii-scanner-v1',
+        },
+        {
+          page_number: 3,
+          identifier_type: 'EMAIL',
+          occurrences: 6,
+          scanner_version: 'pii-scanner-v1',
+        },
+        {
+          page_number: 3,
+          identifier_type: 'PHONE',
+          occurrences: 6,
+          scanner_version: 'pii-scanner-v1',
+        },
+      ],
+    },
+    item: queueItem({
+      review_task_id: 'task-d11',
+      document_id: 'doc-d11',
+      document_type: 'CDP_ONBOARDING',
+      claimed_by_user_id: claimedBy,
+      original_filename: 'D11_onboarding.pdf',
+      summary: {
+        reference: 'DPA-2002',
+        party: 'Lumen Home',
+        subject: 'Braze customer profiles',
+        event_label: 'Go-live',
+        event_date: '2026-12-14',
+        context: 'Braze',
+        amount: null,
+        item_count: 3,
+      },
+      route: {
+        review_queue: 'PRIVACY_REVIEW',
+        reason_code: 'PERSONAL_DATA_FINDINGS',
+        flags: ['UNDECLARED_PERSONAL_DATA', 'UNMASKED_IDENTIFIERS_IN_PACKET'],
+        routed_by: 'RULES',
+        routing_version: 'cdp-routing-v1',
+      },
+    }),
+    review_cycle: 1,
+    rules: [
+      {
+        rule_id: 'CD-008',
+        name: 'No unmasked identifiers',
+        outcome: 'REVIEW',
+        reason_code: 'UNMASKED_IDENTIFIERS_IN_PACKET',
+      },
+    ],
+    fields: [
+      field('source_name', 'Braze customer profiles', 1),
+      field('declares_no_personal_data', true, 1),
+      {
+        ...field(
+          'mappings',
+          [
+            {
+              source_field: 'external_id',
+              source_type: 'STRING',
+              proposed_attribute: 'customer_id',
+              client_marked_personal: false,
+            },
+            {
+              source_field: 'contact',
+              source_type: 'STRING',
+              proposed_attribute: 'email_address',
+              client_marked_personal: false,
+            },
+            {
+              source_field: 'signup',
+              source_type: 'DATE',
+              proposed_attribute: 'loyalty_tier',
+              client_marked_personal: false,
+            },
+          ],
+          2,
+        ),
+        items: [
+          { confidence: '0.9', source_page: 2, evidence_excerpt: 'external_id' },
+          { confidence: '0.9', source_page: 2, evidence_excerpt: 'contact' },
+          { confidence: '0.9', source_page: 2, evidence_excerpt: 'signup' },
+        ],
+      },
+    ],
+    segments: [
+      { page_number: 1, label: 'ONBOARDING_FORM', confidence: '0.95' },
+      { page_number: 2, label: 'DATA_DICTIONARY', confidence: '0.95' },
+      { page_number: 3, label: 'SAMPLE_EXTRACT', confidence: '0.95' },
+    ],
+    reroutes: [],
+  };
+}

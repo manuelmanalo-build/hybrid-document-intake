@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
-export type PackType = 'CLAIM_PACKET' | 'CAMPAIGN_BRIEF';
+export type PackType = 'CLAIM_PACKET' | 'CAMPAIGN_BRIEF' | 'CDP_ONBOARDING';
 
 export type ReviewQueue =
   | 'FAST_TRACK'
@@ -18,7 +18,12 @@ export type ReviewQueue =
   | 'SCOPE_REVIEW'
   | 'LEGAL_REVIEW'
   | 'RUSH_REVIEW'
-  | 'TRAFFIC_REVIEW';
+  | 'TRAFFIC_REVIEW'
+  | 'READY_TO_BUILD'
+  | 'AGREEMENT_REVIEW'
+  | 'PRIVACY_REVIEW'
+  | 'MAPPING_REVIEW'
+  | 'ONBOARDING_REVIEW';
 
 export type ServiceLevelStatus = 'ON_TRACK' | 'DUE_SOON' | 'OVERDUE' | 'MET' | 'MISSED';
 
@@ -107,8 +112,29 @@ export interface Reroute {
   readonly created_at: string;
 }
 
+export interface CanonicalAttributeInfo {
+  readonly entity: string;
+  readonly data_type: string;
+  readonly personal_class: string;
+  readonly identity_key: boolean;
+}
+
+export interface ScanFinding {
+  readonly page_number: number;
+  readonly identifier_type: string;
+  readonly occurrences: number;
+  readonly scanner_version: string;
+}
+
+export interface WorkbenchContext {
+  readonly attributes?: Readonly<Record<string, CanonicalAttributeInfo>>;
+  readonly compatible_types?: Readonly<Record<string, readonly string[]>>;
+  readonly scan_findings?: readonly ScanFinding[];
+}
+
 export interface Workbench {
   readonly document_type: PackType;
+  readonly context?: WorkbenchContext;
   readonly item: ReviewQueueItem;
   readonly review_cycle: number;
   readonly rules: readonly RuleOutcome[];
