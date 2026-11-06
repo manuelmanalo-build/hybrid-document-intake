@@ -167,7 +167,11 @@ The generic review API and screens serve the pack: queue rows summarize client, 
 go-live, and mapping count; the workbench shows the mapping table with each row's proposed
 attribute, type check, personal-data class, and source page, and outlines undeclared personal data,
 scanner findings, and changed go-live dates. Reviewers correct request-level fields and individual
-mapping targets (to a canonical attribute or "do not ingest"). The client-questions panel drafts
+mappings with list-item paths: `mappings[2].proposed_attribute` (retarget to a canonical attribute),
+`mappings[2].client_marked_personal`, and `mappings[2].excluded` ("do not ingest"). Excluded fields
+are skipped by every rule and listed as excluded in the onboarding plan. The workbench receives the
+canonical schema, the type-compatibility table, and the scanner's per-page findings (types and counts
+only) as read-only context. The client-questions panel drafts
 questions for incomplete requests (missing cadence, region, lawful basis, consent mechanism).
 
 ## Approved onboarding plans

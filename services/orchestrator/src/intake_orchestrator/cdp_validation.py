@@ -74,6 +74,8 @@ class MappingData(BaseModel):
     source_type: str
     proposed_attribute: str | None = None
     client_marked_personal: bool = False
+    # Set only by a reviewer: the field is deliberately not ingested and skipped by every rule.
+    excluded: bool = False
 
 
 class OnboardingCandidateData(BaseModel):
@@ -185,7 +187,9 @@ def validate_onboarding_rules(
     data: OnboardingCandidateData, context: OnboardingValidationContext
 ) -> list[RuleResult]:
     agreement = resolve_agreement(data, context.agreements)
-    mappings = [*data.mappings, *data.fields_added_in_correspondence]
+    mappings = [
+        item for item in (*data.mappings, *data.fields_added_in_correspondence) if not item.excluded
+    ]
     attributes = context.attributes
     personal = [
         item

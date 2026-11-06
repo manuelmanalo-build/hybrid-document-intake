@@ -137,4 +137,17 @@ describe('WorkQueueComponent', () => {
     expect(element.textContent).toContain('2 deliverables');
     expect(element.textContent).not.toContain('Fast track');
   });
+
+  it('offers onboarding requests with their own queues', () => {
+    const fixture = TestBed.createComponent(WorkQueueComponent);
+    fixture.componentRef.setInput('initialType', 'CDP_ONBOARDING');
+    fixture.detectChanges();
+    http.expectOne((r) => r.params.get('document_type') === 'CDP_ONBOARDING').flush(queueView([]));
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.textContent).toContain('Privacy review');
+    expect(element.textContent).toContain('Mapping review');
+    expect(element.textContent).toContain('Client and source');
+  });
 });

@@ -31,8 +31,10 @@ from intake_api.application.claims_reference import (
     parse_vehicles,
 )
 from intake_api.application.identity import configured_actor
+from intake_api.application.problems import InvalidUpload
 from intake_api.application.review import (
     CompleteReviewCommand,
+    FieldCorrectionCommand,
     ReviewService,
 )
 from intake_api.application.review_queues import (
@@ -348,6 +350,80 @@ async def test_clean_request_is_ready_duplicate_is_caught_and_approval_emits_a_p
         ]
         assert plan["tasks"][2]["title"] == "Configure identity resolution on email_address"
         assert {entry["attribute"] for entry in plan["mappings"]} >= {"email_address", "order_id"}
+
+
+@pytest.mark.asyncio
+async def test_workbench_context_and_mapping_corrections_drive_revalidation(
+    api: tuple[TestClient, object], database_url: str
+) -> None:
+    client, app = api
+    # Upload the clean request first: the stub extractor gives every packet D01's values, so the
+    # later packet is the duplicate and the clean one stays in READY_TO_BUILD.
+    clean = _upload(client, "D01_onboarding.pdf", "bench-d01")
+    flagged = _upload(client, "D11_onboarding.pdf", "bench-d11")
+    settings = _graph_settings(app, database_url)
+    await _dispatch_runs(settings, 2)
+    _add_users(app, UserRole.REVIEWER, UserRole.APPROVER)
+    app_settings = app.state.settings  # type: ignore[attr-defined]
+    reviewer = configured_actor(app_settings, UserRole.REVIEWER)
+    approver = configured_actor(app_settings, UserRole.APPROVER)
+    queues = ReviewQueueService(app_settings, app.state.session_factory)  # type: ignore[attr-defined]
+    tasks = {
+        item.document_id: item.review_task_id
+        for item in queues.list_queue(reviewer, document_type="CDP_ONBOARDING").items
+    }
+
+    bench = queues.workbench(tasks[flagged], reviewer)
+    findings = bench.context["scan_findings"]
+    assert {"page_number": 3, "identifier_type": "EMAIL", "occurrences": 6} in [
+        {key: row[key] for key in ("page_number", "identifier_type", "occurrences")}
+        for row in findings  # type: ignore[union-attr]
+    ]
+    attributes = bench.context["attributes"]
+    assert attributes["email_address"]["personal_class"] == "DIRECT_IDENTIFIER"  # type: ignore[index]
+    mappings = next(field for field in bench.fields if field.name == "mappings")
+    assert mappings.items is not None
+    assert len(mappings.items) == 6
+
+    reviews = ReviewService(app_settings, app.state.session_factory)  # type: ignore[attr-defined]
+    task_id = tasks[clean]
+    reviews.claim(task_id, approver)
+    with pytest.raises(InvalidUpload):
+        reviews.complete(
+            task_id,
+            CompleteReviewCommand(
+                decision="REQUEST_CORRECTION",
+                reason="Bad path",
+                field_corrections=[
+                    FieldCorrectionCommand(
+                        field="mappings[40].excluded", new_value="true", reason="No such row"
+                    )
+                ],
+            ),
+            approver,
+        )
+    reviews.complete(
+        task_id,
+        CompleteReviewCommand(
+            decision="REQUEST_CORRECTION",
+            reason="Client asked us not to ingest emails yet.",
+            field_corrections=[
+                FieldCorrectionCommand(
+                    field="mappings[0].excluded", new_value="true", reason="Not yet approved"
+                )
+            ],
+        ),
+        approver,
+    )
+    await _dispatch_resume(settings)
+
+    revalidated = queues.workbench(task_id, reviewer)
+    assert revalidated.review_cycle == 2
+    assert revalidated.item.route.review_queue == ReviewQueue.MAPPING_REVIEW
+    assert "NO_IDENTITY_KEY" in revalidated.item.route.flags
+    corrected = next(field for field in revalidated.fields if field.name == "mappings")
+    assert corrected.reviewed is True
+    assert corrected.value[0]["excluded"] is True  # type: ignore[index]
 
 
 def _add_users(app: object, *roles: UserRole) -> None:

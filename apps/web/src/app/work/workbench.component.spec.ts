@@ -4,7 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { WorkbenchComponent } from './workbench.component';
-import { briefWorkbench, workbench } from './work-fixtures.spec-helpers';
+import { briefWorkbench, cdpWorkbench, workbench } from './work-fixtures.spec-helpers';
 
 describe('WorkbenchComponent', () => {
   let http: HttpTestingController;
@@ -181,6 +181,57 @@ describe('WorkbenchComponent', () => {
     expect(request.request.body).toEqual({
       subject: 'Questions on the Cold Brew New Year brief',
       body: 'Hi Elena,\n\n1. Could you confirm the final launch date?',
+    });
+  });
+
+  it('shows scanner findings and checks every mapping for an onboarding request', () => {
+    const fixture = TestBed.createComponent(WorkbenchComponent);
+    fixture.componentRef.setInput('taskId', 'task-d11');
+    fixture.componentRef.setInput('role', 'APPROVER');
+    fixture.componentRef.setInput('userId', 'approver-1');
+    fixture.detectChanges();
+    http.expectOne('/api/v1/review-queues/tasks/task-d11').flush(cdpWorkbench('approver-1'));
+    http.expectOne('/api/v1/documents/doc-d11/content').flush(new Blob(['%PDF-1.7']));
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('#route-title')?.textContent).toContain('Privacy review');
+    const scan = element.querySelector('.scan');
+    expect(scan?.classList).toContain('flagged');
+    expect(scan?.textContent).toContain('Sample extract: 6 email addresses, 6 phone numbers');
+    expect(scan?.textContent).toContain('Business contact details');
+    const rows = Array.from(element.querySelectorAll('.mappings tbody tr'));
+    expect(rows).toHaveLength(3);
+    expect(rows[1]?.classList).toContain('undeclared');
+    expect(rows[1]?.textContent).toContain('Not marked personal');
+    expect(rows[2]?.textContent).toContain('Type mismatch');
+
+    const select = element.querySelector<HTMLSelectElement>(
+      'select[aria-label="Correct the mapping for signup"]',
+    );
+    if (!select) throw new Error('mapping select missing');
+    select.value = '__exclude__';
+    select.dispatchEvent(new Event('change'));
+    const reason = element.querySelector<HTMLTextAreaElement>('#decision-reason');
+    if (!reason) throw new Error('reason missing');
+    reason.value = 'Client will send signup dates separately.';
+    reason.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    Array.from(element.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent.includes('Submit corrections (1)'))
+      ?.click();
+
+    const request = http.expectOne('/api/v1/review-tasks/task-d11/complete');
+    expect(request.request.body).toEqual({
+      decision: 'REQUEST_CORRECTION',
+      reason: 'Client will send signup dates separately.',
+      field_corrections: [
+        {
+          field: 'mappings[2].excluded',
+          new_value: 'true',
+          reason: 'Client will send signup dates separately.',
+        },
+      ],
     });
   });
 });

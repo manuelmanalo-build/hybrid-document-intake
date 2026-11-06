@@ -87,7 +87,7 @@
             <td class="number claims-mono">
               {{ money(item.summary.amount) }}
               @if (item.summary.item_count !== null) {
-                <span class="sub">{{ item.summary.item_count }} deliverables</span>
+                <span class="sub">{{ item.summary.item_count }} {{ pack().itemNoun }}</span>
               }
             </td>
             <td class="nowrap strong">

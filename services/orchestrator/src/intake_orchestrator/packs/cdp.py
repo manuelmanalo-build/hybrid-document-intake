@@ -531,7 +531,7 @@ class CdpWorkflow:
                 )
             )
         )
-        mappings = safe_onboarding_data(raw).mappings
+        mappings = [item for item in safe_onboarding_data(raw).mappings if not item.excluded]
         critical = [item.confidence for item in evidence if item.field_name in CDP_CRITICAL_FIELDS]
         populated = {name for name, value in raw.items() if value not in (None, [], "")}
         covered = {item.field_name.split("[")[0] for item in evidence if item.evidence_excerpt}
@@ -596,7 +596,7 @@ class CdpWorkflow:
         excluded: list[str] = []
         for item in [*data.mappings, *data.fields_added_in_correspondence]:
             attribute = attributes.get(item.proposed_attribute or "")
-            if attribute is None:
+            if item.excluded or attribute is None:
                 excluded.append(item.source_field)
                 continue
             mapped.append(

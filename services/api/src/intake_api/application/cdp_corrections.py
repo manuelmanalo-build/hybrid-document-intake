@@ -4,6 +4,7 @@ Request-level fields in this increment; individual mapping corrections arrive wi
 table in the workbench.
 """
 
+import re
 from datetime import date
 
 from intake_api.application.problems import InvalidUpload
@@ -37,7 +38,17 @@ CDP_REVIEW_FIELDS = (
 )
 
 
+MAPPING_PATH = re.compile(
+    r"^(mappings|fields_added_in_correspondence)\[\d{1,3}\]\."
+    r"(proposed_attribute|client_marked_personal|excluded)$"
+)
+ATTRIBUTE_NAME = re.compile(r"^[a-z][a-z0-9_]{0,79}$")
+
+
 def normalize_cdp_correction(field: str, value: str | None) -> object:
+    mapping = MAPPING_PATH.match(field)
+    if mapping is not None:
+        return _mapping_value(mapping.group(2), value)
     if field not in CDP_REVIEW_FIELDS:
         raise InvalidUpload(
             f"Unsupported onboarding correction field: {field}", "invalid-correction"
@@ -65,3 +76,15 @@ def normalize_cdp_correction(field: str, value: str | None) -> object:
     if not text or len(text) > 500:
         raise InvalidUpload(f"{field} must contain 1 to 500 characters.", "invalid-correction")
     return text
+
+
+def _mapping_value(attribute: str, value: str | None) -> object:
+    """Per-mapping corrections: retarget a field, mark it personal, or exclude it from ingestion."""
+    text = (value or "").strip()
+    if attribute == "proposed_attribute":
+        if not ATTRIBUTE_NAME.match(text):
+            raise InvalidUpload("Choose a canonical attribute name.", "invalid-correction")
+        return text
+    if text.casefold() not in {"true", "false"}:
+        raise InvalidUpload(f"{attribute} must be true or false.", "invalid-correction")
+    return text.casefold() == "true"

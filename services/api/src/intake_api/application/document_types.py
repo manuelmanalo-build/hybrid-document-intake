@@ -5,12 +5,15 @@ from dataclasses import dataclass
 from typing import cast
 
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from intake_api.application.brief_corrections import normalize_brief_correction
 from intake_api.application.cdp_corrections import normalize_cdp_correction
 from intake_api.application.claim_corrections import normalize_claim_correction
 from intake_api.application.problems import ResourceNotFound
 from intake_api.domain.enums import ReviewQueue
+from intake_api.domain.models import CanonicalAttribute, PiiScanFinding, ReviewTask
 from intake_api.infrastructure.config import Settings
 
 CorrectionNormalizer = Callable[[str, str | None], object]
@@ -41,6 +44,8 @@ class ReviewDisplay:
     queues: frozenset[ReviewQueue]
     summary: Callable[[Mapping[str, object]], ItemSummary]
     target_hours: Callable[[Settings, ReviewQueue], int]
+    # Extra read-only facts for the workbench (for example the canonical schema and scan findings).
+    workbench_context: Callable[[Session, ReviewTask], dict[str, object]] | None = None
 
 
 def _text(value: object) -> str | None:
@@ -95,6 +100,67 @@ def _cdp_summary(data: Mapping[str, object]) -> ItemSummary:
         amount=None,
         item_count=len(cast(list[object], mappings)) if isinstance(mappings, list) else None,
     )
+
+
+COMPATIBLE_TYPES: Mapping[str, tuple[str, ...]] = {
+    "STRING": ("STRING", "EMAIL", "PHONE"),
+    "INTEGER": ("NUMBER",),
+    "DECIMAL": ("NUMBER",),
+    "DATE": ("DATE",),
+    "TIMESTAMP": ("TIMESTAMP", "DATE"),
+    "BOOLEAN": ("BOOLEAN",),
+}
+
+
+def _cdp_context(session: Session, task: ReviewTask) -> dict[str, object]:
+    """Canonical schema, type compatibility, and scanner findings (types and counts only)."""
+    attributes = {
+        row.attribute: {
+            "entity": row.entity,
+            "data_type": row.data_type,
+            "personal_class": row.personal_class,
+            "identity_key": row.identity_key,
+        }
+        for row in session.scalars(
+            select(CanonicalAttribute)
+            .where(CanonicalAttribute.tenant_id == task.tenant_id)
+            .order_by(CanonicalAttribute.attribute)
+        )
+    }
+    latest_run = session.scalar(
+        select(PiiScanFinding.agent_run_id)
+        .where(
+            PiiScanFinding.tenant_id == task.tenant_id,
+            PiiScanFinding.document_id == task.document_id,
+        )
+        .order_by(PiiScanFinding.created_at.desc())
+        .limit(1)
+    )
+    findings = (
+        [
+            {
+                "page_number": row.page_number,
+                "identifier_type": row.identifier_type,
+                "occurrences": row.occurrences,
+                "scanner_version": row.scanner_version,
+            }
+            for row in session.scalars(
+                select(PiiScanFinding)
+                .where(
+                    PiiScanFinding.tenant_id == task.tenant_id,
+                    PiiScanFinding.agent_run_id == latest_run,
+                )
+                .order_by(PiiScanFinding.page_number, PiiScanFinding.identifier_type)
+            )
+        ]
+        if latest_run is not None
+        else []
+    )
+    return {
+        "attributes": attributes,
+        "compatible_types": {key: list(value) for key, value in COMPATIBLE_TYPES.items()},
+        "scan_findings": findings,
+    }
 
 
 def _claim_hours(settings: Settings, queue: ReviewQueue) -> int:
@@ -162,7 +228,9 @@ CDP_QUEUES = frozenset(
 REVIEW_DISPLAYS: Mapping[str, ReviewDisplay] = {
     "CLAIM_PACKET": ReviewDisplay("claim-rules-v1", CLAIM_QUEUES, _claim_summary, _claim_hours),
     "CAMPAIGN_BRIEF": ReviewDisplay("brief-rules-v1", BRIEF_QUEUES, _brief_summary, _brief_hours),
-    "CDP_ONBOARDING": ReviewDisplay("cdp-rules-v1", CDP_QUEUES, _cdp_summary, _cdp_hours),
+    "CDP_ONBOARDING": ReviewDisplay(
+        "cdp-rules-v1", CDP_QUEUES, _cdp_summary, _cdp_hours, _cdp_context
+    ),
 }
 
 

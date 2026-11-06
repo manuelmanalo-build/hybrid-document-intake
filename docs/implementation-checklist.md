@@ -155,6 +155,8 @@ implementations.
   connector reference tables (migration 0009, audited loader, Compose job), `lookup_data_agreement`,
   rules, routing, confidence, the `onboarding-plan-v1` payload, and review queues with request-level
   corrections.
-- [ ] Extend the workbench with the mapping table and per-mapping corrections.
+- [x] Extend the workbench with the mapping table, scanner findings, per-mapping corrections
+  (retarget, mark personal, or exclude with `mappings[i].…` paths), and reviewer exclusions in the
+  rules.
 - [ ] Add the live CDP diagnostic with both hard gates.
 

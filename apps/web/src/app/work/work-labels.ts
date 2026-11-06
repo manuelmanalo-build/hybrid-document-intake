@@ -15,6 +15,11 @@ export const QUEUE_LABELS: Readonly<Record<ReviewQueue, string>> = {
   LEGAL_REVIEW: 'Legal review',
   RUSH_REVIEW: 'Rush review',
   TRAFFIC_REVIEW: 'Traffic review',
+  READY_TO_BUILD: 'Ready to build',
+  AGREEMENT_REVIEW: 'Agreement review',
+  PRIVACY_REVIEW: 'Privacy review',
+  MAPPING_REVIEW: 'Mapping review',
+  ONBOARDING_REVIEW: 'Onboarding review',
 };
 
 export type FlagTone = 'attention' | 'info' | 'plain';
@@ -52,6 +57,20 @@ const FLAGS: Readonly<Partial<Record<string, readonly [string, FlagTone]>>> = {
   REGULATED_CONTENT: ['Regulated category', 'attention'],
   DUPLICATE_BRIEF: ['Possible duplicate', 'attention'],
   DATES_INVALID: ['Dates out of order', 'attention'],
+  AGREEMENT_NOT_FOUND: ['No data agreement', 'attention'],
+  AGREEMENT_NOT_ACTIVE: ['Agreement not active at go-live', 'attention'],
+  REGION_NOT_PERMITTED: ['Region not permitted', 'attention'],
+  REQUEST_INCOMPLETE: ['Request incomplete', 'attention'],
+  CONNECTOR_UNSUPPORTED: ['Connector or cadence unsupported', 'attention'],
+  NO_IDENTITY_KEY: ['No identity key mapped', 'attention'],
+  MAPPING_INVALID: ['Mapping invalid', 'attention'],
+  UNDECLARED_PERSONAL_DATA: ['Undeclared personal data', 'attention'],
+  UNMASKED_IDENTIFIERS_IN_PACKET: ['Unmasked identifiers in sample', 'attention'],
+  SAMPLE_NOT_SCANNABLE: ['Sample could not be scanned', 'attention'],
+  LAWFUL_BASIS_MISSING: ['Lawful basis missing', 'attention'],
+  SENSITIVE_DATA_NOT_PERMITTED: ['Sensitive data not permitted', 'attention'],
+  RETENTION_EXCEEDS_AGREEMENT: ['Retention over agreement', 'attention'],
+  DUPLICATE_REQUEST: ['Possible duplicate', 'attention'],
 };
 
 export function flagLabel(code: string): { readonly label: string; readonly tone: FlagTone } {
@@ -76,6 +95,10 @@ export const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   CORRESPONDENCE: 'Correspondence',
   BRIEF: 'Brief',
   MEDIA_PLAN: 'Media plan',
+  ONBOARDING_FORM: 'Onboarding form',
+  DATA_DICTIONARY: 'Data dictionary',
+  SAMPLE_EXTRACT: 'Sample extract',
+  PRIVACY_ADDENDUM: 'Privacy addendum',
   OTHER: 'Other',
 };
 
@@ -101,7 +124,7 @@ export function formatDate(value: string | null): string {
   return year && month && day ? `${month}/${day}/${year}` : value;
 }
 
-export type FieldKind = 'text' | 'boolean' | 'coverage' | 'date' | 'money' | 'list';
+export type FieldKind = 'text' | 'boolean' | 'coverage' | 'date' | 'money' | 'list' | 'mapping';
 
 export interface PackUi {
   readonly type: PackType;
@@ -118,6 +141,8 @@ export interface PackUi {
   readonly labels: Readonly<Record<string, string>>;
   readonly kinds: Readonly<Record<string, FieldKind>>;
   readonly cleanLabel: string;
+  /** What a queue row's item count counts, for example deliverables or mappings. */
+  readonly itemNoun: string;
   /** Field names that disagree across the packet's documents and should be outlined. */
   readonly conflicts: (value: (name: string) => unknown) => readonly string[];
   /** The page to open first, for example the email that changes the brief. */
@@ -199,6 +224,7 @@ const CLAIM_UI: PackUi = {
     estimate_total: 'money',
   },
   cleanLabel: 'Clean · within limit',
+  itemNoun: 'items',
   conflicts: (value) => {
     const names: string[] = [];
     if (
@@ -274,6 +300,7 @@ const BRIEF_UI: PackUi = {
     deliverables_added_in_correspondence: 'list',
   },
   cleanLabel: 'Complete and in scope',
+  itemNoun: 'deliverables',
   conflicts: (value) => {
     const names: string[] = [];
     const moved = value('launch_date_in_correspondence');
@@ -288,9 +315,102 @@ const BRIEF_UI: PackUi = {
   focusField: 'launch_date_in_correspondence',
 };
 
+const CDP_UI: PackUi = {
+  type: 'CDP_ONBOARDING',
+  label: 'Onboarding',
+  singular: 'onboarding request',
+  queues: [
+    'READY_TO_BUILD',
+    'NEEDS_CLIENT_INFO',
+    'AGREEMENT_REVIEW',
+    'PRIVACY_REVIEW',
+    'MAPPING_REVIEW',
+    'RUSH_REVIEW',
+    'ONBOARDING_REVIEW',
+    'DUPLICATE_REVIEW',
+  ],
+  columns: { item: 'Request', party: 'Client and source', event: 'Go-live', amount: 'Mappings' },
+  groups: [
+    [
+      'Request',
+      [
+        'client_name',
+        'agreement_number_stated',
+        'source_name',
+        'connector_type',
+        'refresh_cadence',
+        'data_region',
+        'estimated_records',
+      ],
+    ],
+    [
+      'Privacy',
+      [
+        'declares_no_personal_data',
+        'declares_sensitive_data',
+        'lawful_basis',
+        'consent_mechanism',
+        'retention_days',
+      ],
+    ],
+    ['Timing', ['received_date', 'requested_go_live', 'go_live_in_correspondence', 'data_owner']],
+    ['Field mappings', ['mappings', 'fields_added_in_correspondence']],
+  ],
+  labels: {
+    client_name: 'Client',
+    agreement_number_stated: 'Agreement stated',
+    source_name: 'Source',
+    connector_type: 'Connector',
+    refresh_cadence: 'Cadence',
+    data_region: 'Data region',
+    estimated_records: 'Estimated records',
+    declares_no_personal_data: 'Client says no personal data',
+    declares_sensitive_data: 'Client declares sensitive data',
+    lawful_basis: 'Lawful basis',
+    consent_mechanism: 'Consent mechanism',
+    retention_days: 'Retention (days)',
+    received_date: 'Received',
+    requested_go_live: 'Go-live (form)',
+    go_live_in_correspondence: 'Go-live (email)',
+    data_owner: 'Data owner',
+    mappings: 'From the data dictionary',
+    fields_added_in_correspondence: 'Added in email',
+  },
+  kinds: {
+    declares_no_personal_data: 'boolean',
+    declares_sensitive_data: 'boolean',
+    received_date: 'date',
+    requested_go_live: 'date',
+    go_live_in_correspondence: 'date',
+    mappings: 'mapping',
+    fields_added_in_correspondence: 'mapping',
+  },
+  cleanLabel: 'Mapped and cleared',
+  itemNoun: 'mappings',
+  conflicts: (value) => {
+    const names: string[] = [];
+    const moved = value('go_live_in_correspondence');
+    if (typeof moved === 'string' && moved !== value('requested_go_live')) {
+      names.push('requested_go_live', 'go_live_in_correspondence');
+    }
+    const added = value('fields_added_in_correspondence');
+    if (Array.isArray(added) && added.length > 0) names.push('fields_added_in_correspondence');
+    return names;
+  },
+  focusField: 'go_live_in_correspondence',
+};
+
 export const PACKS: Readonly<Record<PackType, PackUi>> = {
   CLAIM_PACKET: CLAIM_UI,
   CAMPAIGN_BRIEF: BRIEF_UI,
+  CDP_ONBOARDING: CDP_UI,
+};
+
+export const IDENTIFIER_LABELS: Readonly<Record<string, readonly [string, string]>> = {
+  EMAIL: ['email address', 'email addresses'],
+  PHONE: ['phone number', 'phone numbers'],
+  SSN: ['Social Security number', 'Social Security numbers'],
+  CARD: ['card number', 'card numbers'],
 };
 
 export const ASSET_LABELS: Readonly<Record<string, string>> = {

@@ -16,6 +16,7 @@ import { FieldCorrection, IntakeApiService, ReviewDecision, UserRole } from '../
 import {
   ASSET_LABELS,
   FieldKind,
+  IDENTIFIER_LABELS,
   PACKS,
   QUEUE_LABELS,
   SEGMENT_LABELS,
@@ -42,6 +43,22 @@ interface FieldRow {
   readonly conflict: boolean;
   readonly kind: FieldKind;
   readonly items: readonly ListItemRow[];
+  readonly mappings: readonly MappingRow[];
+}
+
+interface MappingRow {
+  readonly key: string;
+  readonly path: string;
+  readonly source: string;
+  readonly sourceType: string;
+  readonly attribute: string;
+  readonly check: 'OK' | 'TYPE_MISMATCH' | 'UNKNOWN' | 'EXCLUDED';
+  readonly personalClass: string;
+  readonly marked: boolean;
+  readonly undeclared: boolean;
+  readonly identityKey: boolean;
+  readonly page: number | null;
+  readonly evidence: string | null;
 }
 
 interface ListItemRow {
@@ -93,6 +110,36 @@ export class WorkbenchComponent implements OnInit, OnDestroy {
   protected readonly questions = signal<ClientQuestions | null>(null);
   protected readonly questionSubject = signal('');
   protected readonly questionBody = signal('');
+  protected readonly attributeOptions = computed(() =>
+    Object.keys(this.bench()?.context?.attributes ?? {}).sort(),
+  );
+  protected readonly scanPages = computed(() => {
+    const findings = this.bench()?.context?.scan_findings ?? [];
+    const labels = new Map(
+      (this.bench()?.segments ?? []).map((segment) => [segment.page_number, segment.label]),
+    );
+    const pages = new Map<number, string[]>();
+    for (const finding of findings) {
+      if (finding.identifier_type === 'NO_TEXT_LAYER') continue;
+      const [one, many] = IDENTIFIER_LABELS[finding.identifier_type] ?? [
+        finding.identifier_type,
+        finding.identifier_type,
+      ];
+      const parts = pages.get(finding.page_number) ?? [];
+      parts.push(`${String(finding.occurrences)} ${finding.occurrences === 1 ? one : many}`);
+      pages.set(finding.page_number, parts);
+    }
+    return [...pages.entries()].map(([page, parts]) => {
+      const label = labels.get(page) ?? 'OTHER';
+      return {
+        page,
+        label: SEGMENT_LABELS[label] ?? label,
+        summary: parts.join(', '),
+        counts: label === 'SAMPLE_EXTRACT' || label === 'DATA_DICTIONARY',
+      };
+    });
+  });
+  protected readonly scanFlagged = computed(() => this.scanPages().some((page) => page.counts));
   protected readonly isBrief = computed(() => this.bench()?.document_type === 'CAMPAIGN_BRIEF');
   protected readonly needsClientInfo = computed(
     () => this.item()?.route.review_queue === 'NEEDS_CLIENT_INFO',
@@ -404,6 +451,7 @@ export class WorkbenchComponent implements OnInit, OnDestroy {
       reviewed: field.reviewed,
       conflict,
       kind,
+      mappings: kind === 'mapping' ? this.mappingRows(field, values) : [],
       items: values.map((value, index) => {
         const item = (value ?? {}) as Readonly<Record<string, unknown>>;
         const evidence = field.items?.[index];
@@ -419,6 +467,62 @@ export class WorkbenchComponent implements OnInit, OnDestroy {
         };
       }),
     };
+  }
+
+  protected setMapping(row: MappingRow, event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    const attributePath = `${row.path}.proposed_attribute`;
+    const excludedPath = `${row.path}.excluded`;
+    this.drafts.update((drafts) => {
+      const next = Object.fromEntries(
+        Object.entries(drafts).filter(([key]) => key !== attributePath && key !== excludedPath),
+      );
+      if (value === '__exclude__') next[excludedPath] = 'true';
+      else if (value !== '' && value !== row.attribute) next[attributePath] = value;
+      return next;
+    });
+  }
+
+  protected mappingDraft(row: MappingRow): string {
+    const drafts = this.drafts();
+    if (`${row.path}.excluded` in drafts) return '__exclude__';
+    return drafts[`${row.path}.proposed_attribute`] ?? '';
+  }
+
+  private mappingRows(field: WorkField, values: readonly unknown[]): MappingRow[] {
+    const attributes = this.bench()?.context?.attributes ?? {};
+    const compatible = this.bench()?.context?.compatible_types ?? {};
+    return values.map((value, index) => {
+      const item = (value ?? {}) as Readonly<Record<string, unknown>>;
+      const attribute = scalarText(item['proposed_attribute']);
+      const sourceType = scalarText(item['source_type']);
+      const info = attributes[attribute] as (typeof attributes)[string] | undefined;
+      const marked = item['client_marked_personal'] === true;
+      const excluded = item['excluded'] === true;
+      const personalClass = info?.personal_class ?? '—';
+      const check: MappingRow['check'] = excluded
+        ? 'EXCLUDED'
+        : info === undefined
+          ? 'UNKNOWN'
+          : (compatible[sourceType] ?? []).includes(info.data_type)
+            ? 'OK'
+            : 'TYPE_MISMATCH';
+      const evidence = field.items?.[index];
+      return {
+        key: `${field.name}-${String(index)}`,
+        path: `${field.name}[${String(index)}]`,
+        source: scalarText(item['source_field']),
+        sourceType,
+        attribute: attribute || '—',
+        check,
+        personalClass,
+        marked,
+        undeclared: !excluded && info !== undefined && info.personal_class !== 'NONE' && !marked,
+        identityKey: info?.identity_key ?? false,
+        page: evidence?.source_page ?? null,
+        evidence: evidence?.evidence_excerpt ?? null,
+      };
+    });
   }
 
   private display(field: WorkField, kind: FieldKind): string {

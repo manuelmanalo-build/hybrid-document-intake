@@ -131,6 +131,7 @@ class RerouteView(BaseModel):
 
 class WorkbenchView(BaseModel):
     document_type: str
+    context: dict[str, object] = Field(default_factory=lambda: dict[str, object]())
     item: ReviewQueueItem
     review_cycle: int
     rules: list[RuleOutcomeView]
@@ -252,8 +253,12 @@ class ReviewQueueService:
             item = self._item(session, task, now or datetime.now(UTC), document_type)
             if item is None:
                 raise ResourceNotFound
+            display = display_for(document_type)
             return WorkbenchView(
                 document_type=document_type,
+                context=display.workbench_context(session, task)
+                if display.workbench_context
+                else {},
                 item=item,
                 review_cycle=task.cycle,
                 rules=_rules(session, task, display_for(document_type).rule_version),

@@ -7,7 +7,7 @@ graph and a bounded LangChain agent subgraph. Supported document types are AP in
 [ADR 0008](docs/adr/0008-claim-packet-document-type.md), personal-auto claim packets; and, per
 [ADR 0009](docs/adr/0009-campaign-brief-document-type-and-domain-packs.md), agency campaign briefs; and, per
 [ADR 0010](docs/adr/0010-cdp-onboarding-document-type.md), CDP data-source onboarding requests
-(pack implemented; mapping workbench in progress). The deterministic application boundary is always
+(pack and mapping workbench implemented). The deterministic application boundary is always
 authoritative. The model proposes tool calls and a recommendation; it never approves, rejects, or
 performs an external side effect.
 
