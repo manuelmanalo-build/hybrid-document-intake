@@ -91,7 +91,8 @@ def downgrade() -> None:
             [
                 e.value
                 for e in AuditEventType
-                if e not in ADDED_AUDIT_EVENTS and e != AuditEventType.CLIENT_QUESTIONS_SENT
+                if e not in ADDED_AUDIT_EVENTS
+                and e not in (AuditEventType.CLIENT_QUESTIONS_SENT, AuditEventType.CDP_REFERENCE_DATA_LOADED)
             ],
         ),
     )

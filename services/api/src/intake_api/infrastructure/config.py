@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     briefs_sla_needs_info_hours: PositiveInt = Field(default=4, le=720)
     briefs_sla_standard_hours: PositiveInt = Field(default=8, le=720)
     briefs_sla_ready_hours: PositiveInt = Field(default=24, le=720)
+    # CDP-onboarding service-level targets (ADR 0010); privacy findings get the fastest look.
+    cdp_sla_privacy_hours: PositiveInt = Field(default=4, le=720)
+    cdp_sla_rush_hours: PositiveInt = Field(default=4, le=720)
+    cdp_sla_standard_hours: PositiveInt = Field(default=8, le=720)
+    cdp_sla_ready_hours: PositiveInt = Field(default=24, le=720)
     graph_request_lease_seconds: PositiveInt = 30
     graph_request_poll_seconds: float = Field(default=2.0, gt=0, le=60)
     graph_request_backoff_base_seconds: PositiveInt = 2

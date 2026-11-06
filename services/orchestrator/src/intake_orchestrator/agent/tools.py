@@ -17,6 +17,14 @@ from intake_orchestrator.agent.brief_contracts import (
     SegmentBriefPacketInput,
     SegmentBriefPacketOutput,
 )
+from intake_orchestrator.agent.cdp_contracts import (
+    LookupDataAgreementInput,
+    LookupDataAgreementOutput,
+    ScanOnboardingPacketInput,
+    ScanOnboardingPacketOutput,
+    SegmentOnboardingPacketInput,
+    SegmentOnboardingPacketOutput,
+)
 from intake_orchestrator.agent.claim_contracts import (
     ExtractClaimInput,
     ExtractClaimOutput,
@@ -73,6 +81,11 @@ TOOL_SCHEMAS: dict[str, type[BaseModel]] = {
     "extract_brief_from_text": ExtractClaimInput,
     "extract_brief_from_visual_content": ExtractClaimInput,
     "lookup_client_sow": LookupClientSowInput,
+    "scan_onboarding_packet": ScanOnboardingPacketInput,
+    "segment_onboarding_packet": SegmentOnboardingPacketInput,
+    "extract_onboarding_from_text": ExtractClaimInput,
+    "extract_onboarding_from_visual_content": ExtractClaimInput,
+    "lookup_data_agreement": LookupDataAgreementInput,
 }
 
 TOOL_OUTPUT_SCHEMAS: dict[str, type[BaseModel]] = {
@@ -94,6 +107,11 @@ TOOL_OUTPUT_SCHEMAS: dict[str, type[BaseModel]] = {
     "extract_brief_from_text": ExtractClaimOutput,
     "extract_brief_from_visual_content": ExtractClaimOutput,
     "lookup_client_sow": LookupClientSowOutput,
+    "scan_onboarding_packet": ScanOnboardingPacketOutput,
+    "segment_onboarding_packet": SegmentOnboardingPacketOutput,
+    "extract_onboarding_from_text": ExtractClaimOutput,
+    "extract_onboarding_from_visual_content": ExtractClaimOutput,
+    "lookup_data_agreement": LookupDataAgreementOutput,
 }
 
 INVOICE_TOOLS = frozenset(
@@ -113,7 +131,7 @@ TOOL_DESCRIPTIONS = {
     "inspect_document": "Inspect tenant-scoped PDF metadata and bounded content characteristics.",
     "classify_document": (
         "Classify the inspected document as AP_INVOICE, CLAIM_PACKET, CAMPAIGN_BRIEF, "
-        "UNSUPPORTED, or UNKNOWN."
+        "CDP_ONBOARDING, UNSUPPORTED, or UNKNOWN."
     ),
     "extract_invoice_from_text": "Extract an AP invoice candidate from bounded PDF text.",
     "extract_invoice_from_visual_content": "Extract an AP invoice candidate from visual pages.",
@@ -121,7 +139,7 @@ TOOL_DESCRIPTIONS = {
     "lookup_purchase_order": "Look up a tenant-scoped purchase-order reference.",
     "validate_candidate": (
         "Run the deterministic rules for the candidate's document type (invoice BR, claim CR, "
-        "or brief CB rules) for advisory agent feedback."
+        "brief CB, or onboarding CD rules) for advisory agent feedback."
     ),
     "retry_extraction": "Authorize a bounded subsequent extraction attempt.",
     "submit_recommendation": "Submit the final non-authoritative recommendation.",
@@ -148,6 +166,23 @@ TOOL_DESCRIPTIONS = {
     ),
     "lookup_client_sow": (
         "For a CAMPAIGN_BRIEF only: find the tenant statement of work covering a brand."
+    ),
+    "scan_onboarding_packet": (
+        "For a CDP_ONBOARDING only: deterministically scan for and redact personal identifiers. "
+        "Runs first; later tools see only redacted text."
+    ),
+    "segment_onboarding_packet": (
+        "For a CDP_ONBOARDING only: label every page (form, data dictionary, sample extract, "
+        "privacy addendum, correspondence, other)."
+    ),
+    "extract_onboarding_from_text": (
+        "For a CDP_ONBOARDING only: extract the request and field mappings from redacted text."
+    ),
+    "extract_onboarding_from_visual_content": (
+        "For a CDP_ONBOARDING only: extract the request from page images (scanned packets)."
+    ),
+    "lookup_data_agreement": (
+        "For a CDP_ONBOARDING only: find the client's data processing agreement."
     ),
     "lookup_policy_vehicle": (
         "For a CLAIM_PACKET only: check whether a VIN is on a policy (EXACT, NEAR, or NONE)."

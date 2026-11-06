@@ -72,6 +72,17 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  cdp-reference-data:
+    <<: *python-service
+    command: ["python", "-m", "intake_api.load_cdp_reference", "/workspace/test-data/cdp"]
+    profiles: ["local"]
+    volumes:
+      - ./test-data/cdp:/workspace/test-data/cdp:ro
+    depends_on:
+      bootstrap-data:
+        condition: service_completed_successfully
+    restart: "no"
+
   checkpoint-migrate:
     <<: *python-service
     command: ["python", "-m", "intake_orchestrator.checkpoint_setup"]

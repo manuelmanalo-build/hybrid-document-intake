@@ -120,7 +120,9 @@ class StubChatModel(BaseChatModel):
     def _choose_pack_tool(
         spec: PackAgentSpec, state: dict[str, Any], results: dict[str, Any]
     ) -> str:
-        """Pack path: segment, extract by available content, validate, optionally retry."""
+        """Pack path: prepare, segment, extract by content, validate, optionally retry."""
+        if spec.preparation_tool is not None and spec.preparation_tool not in results:
+            return spec.preparation_tool
         if spec.segmentation_tool not in results:
             return spec.segmentation_tool
         if not any(key in spec.extraction_tools for key in results):
@@ -205,7 +207,10 @@ def _stub_arguments(name: str, state: dict[str, Any]) -> dict[str, object]:
         identity["inspection_completed"] = True
     elif name.startswith("extract_invoice_from_") or name in pack_extraction_tools():
         identity["attempt_number"] = int(state["extraction_attempts"]) + 1
-    elif (pack := pack_for_tool(name)) is not None and name == pack.agent.segmentation_tool:
+    elif (pack := pack_for_tool(name)) is not None and name in {
+        pack.agent.segmentation_tool,
+        pack.agent.preparation_tool,
+    }:
         identity["inspection_completed"] = True
     elif (pack := pack_for_tool(name)) is not None and name in pack.agent.stub_arguments:
         identity.update(pack.agent.stub_arguments[name])

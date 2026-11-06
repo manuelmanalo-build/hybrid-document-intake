@@ -17,7 +17,7 @@ SOURCE = Path("services/orchestrator/src/intake_orchestrator")
 
 
 def test_claims_and_briefs_are_registered_domain_packs() -> None:
-    assert set(PACKS) == {"CLAIM_PACKET", "CAMPAIGN_BRIEF"}
+    assert set(PACKS) == {"CLAIM_PACKET", "CAMPAIGN_BRIEF", "CDP_ONBOARDING"}
     assert pack_for_tool("lookup_client_sow") is pack_for_type("CAMPAIGN_BRIEF")
     pack = pack_for_type("CLAIM_PACKET")
     assert pack is not None

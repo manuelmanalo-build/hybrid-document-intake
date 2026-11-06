@@ -132,10 +132,20 @@ findings can never reach a queue where someone might build it before privacy has
 | Tool | Input | Output | Limits |
 |---|---|---|---|
 | `scan_onboarding_packet` | identity; `inspection_completed=true` | per-page identifier types and counts; redaction applied | `CDP_ONBOARDING` only; once per run; deterministic |
-| `segment_onboarding_packet` | identity; `scan_completed=true` | one label per page | Requires the scan; once per run |
+| `segment_onboarding_packet` | identity; `inspection_completed=true` | one label per page | Requires the scan (the guard enforces the order); once per run |
 | `extract_onboarding_from_text` | identity; attempt 1–3 | extraction-run/candidate IDs, completeness, reasons | Requires segmentation; shares the extraction counter |
 | `extract_onboarding_from_visual_content` | identity; attempt 1–3 | as above, `VISUAL` | Same; for scanned packets |
 | `lookup_data_agreement` | identity; bounded client name; optional agreement number | match flag, agreement reference, status | Maximum two calls; read-only |
+
+## Implementation notes
+
+`intake_orchestrator.pii` (scanner and redactor), `cdp_validation.py` (rules and routing),
+`cdp_facts.py`, `agent/cdp_contracts.py`, `agent/cdp_extraction.py`, and `packs/cdp.py`. Packs may
+declare a `preparation_tool` that must run once before segmentation; the CDP pack's is
+`scan_onboarding_packet`. Scanner findings are stored per page for every page, including business
+contact details on forms, but only sample-extract and data-dictionary pages count for CD-008.
+Review service levels: `INTAKE_CDP_SLA_PRIVACY_HOURS` (4), `INTAKE_CDP_SLA_RUSH_HOURS` (4),
+`INTAKE_CDP_SLA_READY_HOURS` (24), and `INTAKE_CDP_SLA_STANDARD_HOURS` (8).
 
 ## Persistence
 

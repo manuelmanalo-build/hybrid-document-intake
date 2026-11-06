@@ -49,6 +49,8 @@ class PackAgentSpec:
     deterministic_results: Mapping[str, Mapping[str, object]]
     # Arguments the deterministic stub model sends when a decision plan calls a lookup tool.
     stub_arguments: Mapping[str, Mapping[str, object]]
+    # Optional deterministic tool that must run once before segmentation (for example a PII scan).
+    preparation_tool: str | None = None
 
     @property
     def extraction_tools(self) -> frozenset[str]:
@@ -56,8 +58,14 @@ class PackAgentSpec:
 
     @property
     def tools(self) -> frozenset[str]:
+        preparation = {self.preparation_tool} if self.preparation_tool else set[str]()
         return frozenset(
-            {self.segmentation_tool, *self.extraction_tools, *(item.tool for item in self.lookups)}
+            {
+                *preparation,
+                self.segmentation_tool,
+                *self.extraction_tools,
+                *(item.tool for item in self.lookups),
+            }
         )
 
 

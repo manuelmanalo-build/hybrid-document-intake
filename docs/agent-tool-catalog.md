@@ -38,6 +38,11 @@ operation key and the persisted agent start time enforces the total deadline acr
 | `extract_brief_from_text` | identity; attempt number 1–3 | extraction-run/candidate IDs, `TEXT`, completeness, reasons | `CAMPAIGN_BRIEF` and segmentation complete; shares the three-attempt counter | Work request with per-deliverable evidence, schema `campaign-brief-v1` |
 | `extract_brief_from_visual_content` | identity; attempt number 1–3 | as above, `VISUAL` | Same as text brief extraction; for scanned briefs | Same protections as text brief extraction |
 | `lookup_client_sow` | identity; bounded brand; optional SOW number | match flag, SOW reference, number, status | `CAMPAIGN_BRIEF` only; current tenant reference data; maximum two calls | Read-only lookup |
+| `scan_onboarding_packet` | identity; `inspection_completed=true` | per-page identifier types and counts (never values), text-layer flags, scanner version | `CDP_ONBOARDING` only; first pack tool, once per run; deterministic, no model call | Findings persisted per page; later tools in the run see only redacted text |
+| `segment_onboarding_packet` | identity; `inspection_completed=true` | page count, one onboarding label per page | Requires the scan; once per run | Receives redacted text |
+| `extract_onboarding_from_text` | identity; attempt 1–3 | extraction-run/candidate IDs, `TEXT`, completeness, reasons | Requires segmentation; shares the three-attempt counter | Redacted input; values and evidence redacted again before persistence, schema `cdp-onboarding-v1` |
+| `extract_onboarding_from_visual_content` | identity; attempt 1–3 | as above, `VISUAL` | Same; for scanned packets | Same protections |
+| `lookup_data_agreement` | identity; bounded client name; optional agreement number | match flag, agreement number, status, reference | `CDP_ONBOARDING` only; maximum two calls | Read-only lookup |
 
 ## Output restrictions
 

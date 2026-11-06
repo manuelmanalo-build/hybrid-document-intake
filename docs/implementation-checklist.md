@@ -150,10 +150,11 @@ implementations.
 - [x] Record the CDP onboarding decision, scope, personal-data scanning and redaction design,
   CD-001 through CD-015, and `cdp-routing-v1`.
 - [x] Add the 20-packet synthetic onboarding set, its generator, and integrity tests.
-- [ ] Add the deterministic PII scanner and redactor (`pii-scanner-v1`) with per-page findings.
-- [ ] Add the CDP pack: contracts with a mappings list, extraction, agreement, attribute, and
-  connector reference tables, `lookup_data_agreement`, rules, routing, and confidence.
-- [ ] Extend the review API and screens with the mapping table and mapping corrections.
-- [ ] Emit the `onboarding-plan-v1` outbox payload.
+- [x] Add the deterministic PII scanner and redactor (`pii-scanner-v1`) with per-page findings.
+- [x] Add the CDP pack: contracts with a mappings list, extraction, agreement, attribute, and
+  connector reference tables (migration 0009, audited loader, Compose job), `lookup_data_agreement`,
+  rules, routing, confidence, the `onboarding-plan-v1` payload, and review queues with request-level
+  corrections.
+- [ ] Extend the workbench with the mapping table and per-mapping corrections.
 - [ ] Add the live CDP diagnostic with both hard gates.
 

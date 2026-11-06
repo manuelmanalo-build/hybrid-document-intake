@@ -22,6 +22,7 @@ class AgentLimits:
     max_policy_lookups: int = 2
     max_vehicle_lookups: int = 2
     max_sow_lookups: int = 2
+    max_agreement_lookups: int = 2
 
 
 class AgentPolicyGuard:
@@ -120,6 +121,11 @@ class AgentPolicyGuard:
     ) -> None:
         if document_type != spec.document_type:
             raise PolicyViolation(f"This tool requires a {spec.document_type} classification")
+        if spec.preparation_tool is not None:
+            if tool_name == spec.preparation_tool and spec.preparation_tool in tools_used:
+                raise PolicyViolation("Packet preparation runs once per agent run")
+            if tool_name == spec.segmentation_tool and spec.preparation_tool not in tools_used:
+                raise PolicyViolation("Packet segmentation requires preparation first")
         if tool_name == spec.segmentation_tool and spec.segmentation_tool in tools_used:
             raise PolicyViolation("A packet is segmented once per agent run")
         if tool_name in spec.extraction_tools and spec.segmentation_tool not in tools_used:
