@@ -168,3 +168,31 @@ EVALUATION_LIVE_ENABLED=true uv run python -m evaluation.live_briefs_extraction
 Two model calls per packet (40 total). The report is written to
 `evaluation-live-briefs-report.json` (git-ignored).
 
+### Live CDP-onboarding diagnostic
+
+`evaluation.live_cdp_extraction` mirrors the CDP pack on the 20 packets in `test-data/cdp`: the
+deterministic scanner reads every page, the text is redacted, and only redacted content reaches the
+segmenter and extractor. The real CD rules and `cdp-routing-v1` then run offline against the
+reference CSVs. It reports page-label accuracy, accuracy on 14 structured request fields, mapping
+precision and recall (matched on source field, source type, proposed attribute, and the client's
+personal-data mark), queue accuracy with a confusion matrix, and split digital and scanned field
+accuracy.
+
+The command fails on any of three gates:
+
+1. a false `READY_TO_BUILD`;
+2. a packet whose sample extract carries identifiers that is not routed to `PRIVACY_REVIEW`
+   (unless ground truth sends it to duplicate or agreement review first), listed in
+   `privacy_gate_misses`;
+3. `identifier_leaks`: any raw identifier in the content sent to the model or in what the model
+   returned. Per request, the report records identifiers found in the packet, sent to the model, and
+   returned by it.
+
+```bash
+PYTHONPATH=.:services/api/src:services/orchestrator/src \
+AGENT_PROVIDER=anthropic AGENT_MODEL=<model> ANTHROPIC_API_KEY=<key> \
+EVALUATION_LIVE_ENABLED=true uv run python -m evaluation.live_cdp_extraction
+```
+
+Two model calls per packet (40 total); the report is written to `evaluation-live-cdp-report.json`.
+

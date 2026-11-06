@@ -158,5 +158,6 @@ implementations.
 - [x] Extend the workbench with the mapping table, scanner findings, per-mapping corrections
   (retarget, mark personal, or exclude with `mappings[i].…` paths), and reviewer exclusions in the
   rules.
-- [ ] Add the live CDP diagnostic with both hard gates.
+- [x] Add the live CDP diagnostic: mapping precision and recall, queue agreement, and three gates
+  (no false ready, every identifier-bearing sample in privacy review, zero identifier leaks).
 
