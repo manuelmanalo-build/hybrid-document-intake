@@ -163,3 +163,22 @@ def test_every_rule_runs_once() -> None:
     results = validate_onboarding_rules(OnboardingCandidateData(), OnboardingValidationContext())
 
     assert [result.rule_id for result in results] == [rule for rule, _, _ in CDP_RULE_DEFINITIONS]
+
+
+def test_a_reviewer_exclusion_clears_an_unmappable_field() -> None:
+    row = next(item for item in _rows("ground_truth.csv") if item["request_id"] == "D05")
+    candidate = _candidate(row)
+    assert (
+        route_onboarding(validate_onboarding_rules(candidate, _context(row, duplicate=False))).queue
+        == "MAPPING_REVIEW"
+    )
+    mappings = [
+        m.model_copy(update={"excluded": m.proposed_attribute is None}) for m in candidate.mappings
+    ]
+
+    excluded = candidate.model_copy(update={"mappings": mappings})
+
+    assert (
+        route_onboarding(validate_onboarding_rules(excluded, _context(row, duplicate=False))).queue
+        == "READY_TO_BUILD"
+    )

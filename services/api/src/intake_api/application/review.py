@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import copy
+import re
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -206,12 +208,14 @@ class ReviewService:
                 .order_by(ReviewedDocumentVersion.review_cycle.desc())
                 .limit(1)
             )
-            corrected = dict(
-                prior_version.business_data
-                if prior_version
-                else candidate.candidate_data
-                if candidate
-                else {}
+            corrected = copy.deepcopy(
+                dict(
+                    prior_version.business_data
+                    if prior_version
+                    else candidate.candidate_data
+                    if candidate
+                    else {}
+                )
             )
             normalized: dict[str, object] = {}
             previous_values: dict[str, object] = {}
@@ -224,8 +228,9 @@ class ReviewService:
                     and (normalizer := CORRECTION_NORMALIZERS.get(candidate.document_type))
                     else _normalize_value(correction.field, correction.new_value)
                 )
-                previous_values[correction.field] = corrected.get(correction.field)
-            corrected.update(normalized)
+                previous_values[correction.field] = _read_path(corrected, correction.field)
+            for field_name, value in normalized.items():
+                _write_path(corrected, field_name, value)
             version_id = _stable_uuid(f"review-version:{task.id}:{task.cycle}")
             version = ReviewedDocumentVersion(
                 id=version_id,
@@ -365,6 +370,35 @@ def _normalize_value(field: str, value: str | None) -> object:
     if field in STRING_FIELDS and (not text or len(text) > 200):
         raise InvalidUpload(f"{field} must contain 1 to 200 characters.", "invalid-correction")
     return text
+
+
+_ITEM_PATH = re.compile(r"^([a-z_]+)\[(\d{1,3})\]\.([a-z_]+)$")
+
+
+def _read_path(data: dict[str, object], field: str) -> object:
+    """Read `name` or a list-item attribute `name[index].attribute` from business data."""
+    match = _ITEM_PATH.match(field)
+    if match is None:
+        return data.get(field)
+    return _list_item(data, match.group(1), int(match.group(2))).get(match.group(3))
+
+
+def _write_path(data: dict[str, object], field: str, value: object) -> None:
+    match = _ITEM_PATH.match(field)
+    if match is None:
+        data[field] = value
+        return
+    _list_item(data, match.group(1), int(match.group(2)))[match.group(3)] = value
+
+
+def _list_item(data: dict[str, object], name: str, index: int) -> dict[str, object]:
+    items = data.get(name)
+    if not isinstance(items, list) or index >= len(cast(list[object], items)):
+        raise InvalidUpload(f"{name}[{index}] does not exist.", "invalid-correction")
+    item = cast(list[object], items)[index]
+    if not isinstance(item, dict):
+        raise InvalidUpload(f"{name}[{index}] cannot be corrected.", "invalid-correction")
+    return cast(dict[str, object], item)
 
 
 def _stable_uuid(material: str) -> UUID:
