@@ -20,3 +20,5 @@ uv run python scripts/generate_evaluation_fixtures.py
 
 `briefs/` holds the 20-packet synthetic agency campaign-brief set (ADR 0009); see
 `briefs/README.md`.
+
+`cdp/` holds the 20-packet synthetic CDP-onboarding set (ADR 0010); see `cdp/README.md`.
