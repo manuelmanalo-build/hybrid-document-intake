@@ -1,0 +1,43 @@
+{
+  "event_version": "1.0",
+  "event_type": "DOCUMENT_APPROVED",
+  "approved_business_record_id": "00000000-0000-4000-8000-000000000001",
+  "document_id": "00000000-0000-4000-9000-000000000001",
+  "graph_run_id": "00000000-0000-4000-a000-000000000001",
+  "business_data": {
+    "invoice_number": "INV-1042",
+    "invoice_date": "2026-10-01",
+    "due_date": "2026-10-31",
+    "supplier_name": "Acme Paper Co.",
+    "supplier_tax_id": "12-3456789",
+    "purchase_order_number": "PO-4500",
+    "currency": "USD",
+    "subtotal": "100.00",
+    "tax": "8.25",
+    "total": "108.25"
+  },
+  "event_key": "approved-record:00000000-0000-4000-8000-000000000101:DOCUMENT_APPROVED",
+  "document_type": "AP_INVOICE",
+  "accounting_bill": {
+    "schema_version": "quickbooks-bill-v1",
+    "vendor_name": "Acme Paper Co.",
+    "vendor_tax_id": "12-3456789",
+    "doc_number": "INV-1042",
+    "txn_date": "2026-10-01",
+    "due_date": "2026-10-31",
+    "currency": "USD",
+    "memo": "PO PO-4500",
+    "lines": [
+      {
+        "description": "Invoice INV-1042 (PO PO-4500)",
+        "amount": "100.00"
+      },
+      {
+        "description": "Sales tax",
+        "amount": "8.25"
+      }
+    ],
+    "total": "108.25",
+    "lines_match_total": true
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "event_version": "1.0",
+  "event_type": "DOCUMENT_APPROVED",
+  "approved_business_record_id": "00000000-0000-4000-8000-000000000002",
+  "document_id": "00000000-0000-4000-9000-000000000002",
+  "graph_run_id": "00000000-0000-4000-a000-000000000002",
+  "business_data": {
+    "named_insured": "Danielle Okafor",
+    "policy_number": "NFM-PA-4472433",
+    "loss_date": "2026-09-22",
+    "cause_of_loss": "Rear-ended by other party",
+    "vehicle_year": 2020,
+    "vehicle_make": "Toyota",
+    "vehicle_model": "RAV4 XLE",
+    "vin_reported": "2T3W1RFV8LW083215",
+    "estimate_total": "2415.90",
+    "police_report_number": "HPD-26-118734"
+  },
+  "event_key": "approved-record:00000000-0000-4000-8000-000000000101:DOCUMENT_APPROVED",
+  "document_type": "CLAIM_PACKET",
+  "claim": {
+    "named_insured": "Danielle Okafor",
+    "policy_number": "NFM-PA-4472433",
+    "loss_date": "2026-09-22",
+    "cause_of_loss": "Rear-ended by other party",
+    "vehicle": "2020 Toyota RAV4 XLE",
+    "vin": "2T3W1RFV8LW083215",
+    "estimate_total": "2415.90",
+    "police_report_number": "HPD-26-118734",
+    "queue": "BODILY_INJURY_ADJUSTER",
+    "queue_label": "Bodily injury",
+    "routing_reason": "INJURY_INDICATED",
+    "flags": [
+      "INJURY_INDICATED",
+      "INJURY_CONFLICT",
+      "THIRD_PARTY_INVOLVED"
+    ]
+  },
+  "jira": {
+    "schema_version": "jira-issues-v1",
+    "epic": null,
+    "issues": [
+      {
+        "key": "claim",
+        "issue_type": "Task",
+        "summary": "FNOL: Danielle Okafor · 2020 Toyota RAV4 XLE · loss 2026-09-22",
+        "description": "Insured: Danielle Okafor\nPolicy: NFM-PA-4472433\nDate of loss: 2026-09-22\nCause: Rear-ended by other party\nVehicle: 2020 Toyota RAV4 XLE\nVIN: 2T3W1RFV8LW083215\nEstimate: 2415.90\nQueue: Bodily injury\nFlags: INJURY_INDICATED, INJURY_CONFLICT, THIRD_PARTY_INVOLVED",
+        "labels": [
+          "claim",
+          "bodily-injury-adjuster",
+          "intake-000-000000000101-documen",
+          "injury-indicated",
+          "injury-conflict",
+          "third-party-involved"
+        ],
+        "priority": "High",
+        "due_date": null
+      }
+    ]
+  }
+}

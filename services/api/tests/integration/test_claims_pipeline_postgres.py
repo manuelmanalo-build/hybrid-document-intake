@@ -43,6 +43,7 @@ from intake_api.domain.models import (
     DocumentPageSegment,
     ExtractionCandidate,
     GraphRun,
+    OutboxEvent,
     ReviewTask,
     Tenant,
     User,
@@ -413,3 +414,52 @@ async def test_claims_queue_workbench_reroute_and_claim_corrections(
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+@pytest.mark.asyncio
+async def test_routed_alerts_and_the_approved_claim_jira_issue(
+    api: tuple[TestClient, object], database_url: str
+) -> None:
+    client, app = api
+    document_id = _upload(client, "C01_packet.pdf", "alerts-c01")
+    settings = _graph_settings(app, database_url)
+    await _dispatch_runs(settings, 1)
+    _add_users(app, UserRole.REVIEWER, UserRole.APPROVER)
+    app_settings = app.state.settings  # type: ignore[attr-defined]
+    reviewer = configured_actor(app_settings, UserRole.REVIEWER)
+    approver = configured_actor(app_settings, UserRole.APPROVER)
+    claims = ClaimsReviewService(app_settings, app.state.session_factory)  # type: ignore[attr-defined]
+    task_id = claims.list_queue(reviewer).items[0].review_task_id
+
+    claims.reroute(
+        task_id,
+        RerouteCommand(to_queue=ReviewQueue.DESK_ADJUSTER, reason="Adjuster requested it."),
+        reviewer,
+    )
+    reviews = ReviewService(app_settings, app.state.session_factory)  # type: ignore[attr-defined]
+    reviews.claim(task_id, approver)
+    reviews.complete(
+        task_id,
+        CompleteReviewCommand(decision="APPROVE", reason="Coverage and estimate verified."),
+        approver,
+    )
+    await _dispatch_resume(settings)
+
+    with app.state.session_factory() as session:  # type: ignore[attr-defined]
+        events = {
+            (row.event_type, row.payload.get("routed_by")): row
+            for row in session.scalars(
+                select(OutboxEvent).where(OutboxEvent.document_id == document_id)
+            )
+        }
+        rules = events[("DOCUMENT_ROUTED", "RULES")].payload
+        assert rules["queue"] == "FAST_TRACK"
+        assert rules["service_level"]["target_hours"] == 4
+        assert rules["summary"]["party"] == "Marisol Vega"
+        rerouted = events[("DOCUMENT_ROUTED", "REVIEWER")].payload
+        assert rerouted["queue"] == "DESK_ADJUSTER"
+        approved = events[("DOCUMENT_APPROVED", None)].payload
+        issue = approved["jira"]["issues"][0]
+        assert issue["summary"].startswith("FNOL: Marisol Vega")
+        assert approved["claim"]["queue"] == "FAST_TRACK"
+        assert approved["claim"]["estimate_total"] == "3241.87"

@@ -103,6 +103,12 @@ class Settings(BaseSettings):
     )
     agent_model_timeout_seconds: PositiveInt = 30
     zapier_hook_url: SecretStr | None = None
+    # Optional per-destination Zaps; events fall back to zapier_hook_url when unset.
+    zapier_hook_url_routed: SecretStr | None = None
+    zapier_hook_url_ap_invoice: SecretStr | None = None
+    zapier_hook_url_claim_packet: SecretStr | None = None
+    zapier_hook_url_campaign_brief: SecretStr | None = None
+    zapier_hook_url_cdp_onboarding: SecretStr | None = None
     zapier_auth_token: SecretStr | None = None
     zapier_signing_secret: SecretStr | None = None
     zapier_callback_token: SecretStr | None = None

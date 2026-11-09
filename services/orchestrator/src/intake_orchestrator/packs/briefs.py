@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intake_api.application.integration_payloads import brief_jira
 from intake_api.domain.enums import AuditEventType, ClaimKeyStatus, PageSegmentLabel, ReviewQueue
 from intake_api.domain.models import (
     AgentRecommendation,
@@ -484,7 +485,13 @@ class BriefWorkflow:
             key.status = ClaimKeyStatus.REJECTED
 
     async def outbox_payload(
-        self, session: AsyncSession, *, tenant_id: UUID, business_data: Mapping[str, object]
+        self,
+        session: AsyncSession,
+        *,
+        tenant_id: UUID,
+        document_id: UUID,
+        event_key: str,
+        business_data: Mapping[str, object],
     ) -> dict[str, object]:
         """An approved work request: one task per deliverable for the work-management tool."""
         assets = {
@@ -517,21 +524,23 @@ class BriefWorkflow:
                     }
                 )
         launch = data.launch_date_in_correspondence or data.launch_date
+        work_request: dict[str, object] = {
+            "schema_version": "work-request-v1",
+            "client_name": data.client_name,
+            "brand": data.brand,
+            "campaign_name": data.campaign_name,
+            "sow_number": sow.sow_number if sow else data.sow_number_stated,
+            "launch_date": launch.isoformat() if launch else None,
+            "end_date": data.end_date.isoformat() if data.end_date else None,
+            "budget_total": str(data.budget_total) if data.budget_total is not None else None,
+            "primary_kpi": data.primary_kpi,
+            "kpi_target": data.kpi_target,
+            "tasks": tasks,
+        }
         return {
             "document_type": "CAMPAIGN_BRIEF",
-            "work_request": {
-                "schema_version": "work-request-v1",
-                "client_name": data.client_name,
-                "brand": data.brand,
-                "campaign_name": data.campaign_name,
-                "sow_number": sow.sow_number if sow else data.sow_number_stated,
-                "launch_date": launch.isoformat() if launch else None,
-                "end_date": data.end_date.isoformat() if data.end_date else None,
-                "budget_total": str(data.budget_total) if data.budget_total is not None else None,
-                "primary_kpi": data.primary_kpi,
-                "kpi_target": data.kpi_target,
-                "tasks": tasks,
-            },
+            "work_request": work_request,
+            "jira": brief_jira(work_request, event_key=event_key),
         }
 
 

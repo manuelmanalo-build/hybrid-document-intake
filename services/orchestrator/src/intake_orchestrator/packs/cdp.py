@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intake_api.application.integration_payloads import cdp_jira
 from intake_api.domain.enums import AuditEventType, ClaimKeyStatus, PageSegmentLabel, ReviewQueue
 from intake_api.domain.models import (
     AgentRecommendation,
@@ -578,7 +579,13 @@ class CdpWorkflow:
             key.status = ClaimKeyStatus.REJECTED
 
     async def outbox_payload(
-        self, session: AsyncSession, *, tenant_id: UUID, business_data: Mapping[str, object]
+        self,
+        session: AsyncSession,
+        *,
+        tenant_id: UUID,
+        document_id: UUID,
+        event_key: str,
+        business_data: Mapping[str, object],
     ) -> dict[str, object]:
         """An approved onboarding plan: the confirmed mapping spec and one task per workstream."""
         attributes = {
@@ -620,23 +627,25 @@ class CdpWorkflow:
         if personal:
             tasks.append(("consent", f"Configure consent enforcement ({data.lawful_basis})"))
         tasks.append(("qa", f"QA {source} against the redacted sample"))
+        plan: dict[str, object] = {
+            "schema_version": "onboarding-plan-v1",
+            "client_name": data.client_name,
+            "agreement_number": agreement.agreement_number if agreement else None,
+            "source_name": data.source_name,
+            "connector_type": data.connector_type,
+            "refresh_cadence": data.refresh_cadence,
+            "data_region": data.data_region,
+            "lawful_basis": data.lawful_basis,
+            "retention_days": data.retention_days,
+            "go_live": go_live.isoformat() if go_live else None,
+            "mappings": mapped,
+            "excluded_fields": excluded,
+            "tasks": [{"task_key": key, "title": title} for key, title in tasks],
+        }
         return {
             "document_type": "CDP_ONBOARDING",
-            "onboarding_plan": {
-                "schema_version": "onboarding-plan-v1",
-                "client_name": data.client_name,
-                "agreement_number": agreement.agreement_number if agreement else None,
-                "source_name": data.source_name,
-                "connector_type": data.connector_type,
-                "refresh_cadence": data.refresh_cadence,
-                "data_region": data.data_region,
-                "lawful_basis": data.lawful_basis,
-                "retention_days": data.retention_days,
-                "go_live": go_live.isoformat() if go_live else None,
-                "mappings": mapped,
-                "excluded_fields": excluded,
-                "tasks": [{"task_key": key, "title": title} for key, title in tasks],
-            },
+            "onboarding_plan": plan,
+            "jira": cdp_jira(plan, event_key=event_key),
         }
 
 

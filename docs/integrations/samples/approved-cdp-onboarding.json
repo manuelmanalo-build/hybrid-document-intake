@@ -1,0 +1,179 @@
+{
+  "event_version": "1.0",
+  "event_type": "DOCUMENT_APPROVED",
+  "approved_business_record_id": "00000000-0000-4000-8000-000000000004",
+  "document_id": "00000000-0000-4000-9000-000000000004",
+  "graph_run_id": "00000000-0000-4000-a000-000000000004",
+  "business_data": {},
+  "event_key": "approved-record:00000000-0000-4000-8000-000000000101:DOCUMENT_APPROVED",
+  "document_type": "CDP_ONBOARDING",
+  "onboarding_plan": {
+    "schema_version": "onboarding-plan-v1",
+    "client_name": "Harbor & Vine Coffee Co.",
+    "agreement_number": "DPA-2001",
+    "source_name": "Shopify orders (US store)",
+    "connector_type": "SHOPIFY",
+    "refresh_cadence": "DAILY",
+    "data_region": "US",
+    "lawful_basis": "CONTRACT",
+    "retention_days": 730,
+    "go_live": "2026-11-30",
+    "mappings": [
+      {
+        "source_field": "customer_email",
+        "attribute": "email_address",
+        "entity": "PROFILE",
+        "personal_class": "DIRECT_IDENTIFIER",
+        "identity_key": true
+      },
+      {
+        "source_field": "order_number",
+        "attribute": "order_id",
+        "entity": "EVENT",
+        "personal_class": "NONE",
+        "identity_key": false
+      },
+      {
+        "source_field": "total_price",
+        "attribute": "order_total",
+        "entity": "EVENT",
+        "personal_class": "NONE",
+        "identity_key": false
+      }
+    ],
+    "excluded_fields": [],
+    "tasks": [
+      {
+        "task_key": "connector",
+        "title": "Configure SHOPIFY connector for Shopify orders (US store)"
+      },
+      {
+        "task_key": "mapping",
+        "title": "Implement 3 field mappings for Shopify orders (US store)"
+      },
+      {
+        "task_key": "identity",
+        "title": "Configure identity resolution on email_address"
+      },
+      {
+        "task_key": "consent",
+        "title": "Configure consent enforcement (CONTRACT)"
+      },
+      {
+        "task_key": "qa",
+        "title": "QA Shopify orders (US store) against the redacted sample"
+      }
+    ]
+  },
+  "jira": {
+    "schema_version": "jira-issues-v1",
+    "epic": {
+      "key": "epic",
+      "issue_type": "Epic",
+      "summary": "Onboard Shopify orders (US store) (Harbor & Vine Coffee Co.)",
+      "description": "Client: Harbor & Vine Coffee Co.\nAgreement: DPA-2001\nConnector: SHOPIFY\nCadence: DAILY\nRegion: US\nLawful basis: CONTRACT\nRetention (days): 730\nGo-live: 2026-11-30",
+      "labels": [
+        "cdp-onboarding",
+        "shopify-orders-us-store",
+        "intake-000-000000000101-documen"
+      ],
+      "priority": "Medium",
+      "due_date": "2026-11-30"
+    },
+    "issues": [
+      {
+        "key": "connector",
+        "issue_type": "Story",
+        "summary": "Shopify orders (US store): Configure SHOPIFY connector for Shopify orders (US store)",
+        "description": "Configure SHOPIFY connector for Shopify orders (US store)",
+        "labels": [
+          "cdp-onboarding",
+          "shopify-orders-us-store",
+          "intake-000-000000000101-documen",
+          "connector"
+        ],
+        "priority": "Medium",
+        "due_date": "2026-11-30"
+      },
+      {
+        "key": "mapping",
+        "issue_type": "Story",
+        "summary": "Shopify orders (US store): Implement 3 field mappings for Shopify orders (US store)",
+        "description": "Implement 3 field mappings for Shopify orders (US store)\n\ncustomer_email → email_address (PROFILE, DIRECT_IDENTIFIER, identity key)\norder_number → order_id (EVENT, NONE)\ntotal_price → order_total (EVENT, NONE)",
+        "labels": [
+          "cdp-onboarding",
+          "shopify-orders-us-store",
+          "intake-000-000000000101-documen",
+          "mapping"
+        ],
+        "priority": "Medium",
+        "due_date": "2026-11-30"
+      },
+      {
+        "key": "identity",
+        "issue_type": "Story",
+        "summary": "Shopify orders (US store): Configure identity resolution on email_address",
+        "description": "Configure identity resolution on email_address",
+        "labels": [
+          "cdp-onboarding",
+          "shopify-orders-us-store",
+          "intake-000-000000000101-documen",
+          "identity"
+        ],
+        "priority": "Medium",
+        "due_date": "2026-11-30"
+      },
+      {
+        "key": "consent",
+        "issue_type": "Story",
+        "summary": "Shopify orders (US store): Configure consent enforcement (CONTRACT)",
+        "description": "Configure consent enforcement (CONTRACT)",
+        "labels": [
+          "cdp-onboarding",
+          "shopify-orders-us-store",
+          "intake-000-000000000101-documen",
+          "consent"
+        ],
+        "priority": "High",
+        "due_date": "2026-11-30"
+      },
+      {
+        "key": "qa",
+        "issue_type": "Story",
+        "summary": "Shopify orders (US store): QA Shopify orders (US store) against the redacted sample",
+        "description": "QA Shopify orders (US store) against the redacted sample",
+        "labels": [
+          "cdp-onboarding",
+          "shopify-orders-us-store",
+          "intake-000-000000000101-documen",
+          "qa"
+        ],
+        "priority": "Medium",
+        "due_date": "2026-11-30"
+      }
+    ],
+    "mapping_rows": [
+      {
+        "source_field": "customer_email",
+        "attribute": "email_address",
+        "entity": "PROFILE",
+        "personal_class": "DIRECT_IDENTIFIER",
+        "identity_key": true
+      },
+      {
+        "source_field": "order_number",
+        "attribute": "order_id",
+        "entity": "EVENT",
+        "personal_class": "NONE",
+        "identity_key": false
+      },
+      {
+        "source_field": "total_price",
+        "attribute": "order_total",
+        "entity": "EVENT",
+        "personal_class": "NONE",
+        "identity_key": false
+      }
+    ]
+  }
+}

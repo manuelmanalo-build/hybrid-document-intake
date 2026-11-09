@@ -14,6 +14,7 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import httpx
 import structlog
+from pydantic import SecretStr
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -83,7 +84,8 @@ class HttpxZapierSender:
 
     async def send(self, event: LeasedOutboxEvent) -> DeliveryOutcome:
         started = time.monotonic()
-        if self._settings.zapier_hook_url is None:
+        hook_url = resolve_hook_url(self._settings, event.payload)
+        if hook_url is None:
             return DeliveryOutcome(
                 success=False,
                 retryable=False,
@@ -111,7 +113,7 @@ class HttpxZapierSender:
             headers["X-Webhook-Signature"] = f"sha256={signature}"
         try:
             response = await self._client.post(
-                self._settings.zapier_hook_url.get_secret_value(), content=body, headers=headers
+                hook_url.get_secret_value(), content=body, headers=headers
             )
         except httpx.TimeoutException:
             return _failure("WEBHOOK_TIMEOUT", True, None, started)
@@ -305,6 +307,29 @@ async def run_forever(worker: IntegrationWorker, poll_seconds: float) -> None:
     while True:
         if not await worker.deliver_one():
             await asyncio.sleep(poll_seconds)
+
+
+def resolve_hook_url(settings: Settings, payload: dict[str, object]) -> SecretStr | None:
+    """Route each event to its own Zap when configured: routed alerts first, then by type.
+
+    Blank values (as left in a copied `.env.example`) count as unset.
+    """
+
+    def configured(value: SecretStr | None) -> SecretStr | None:
+        return value if value is not None and value.get_secret_value().strip() else None
+
+    by_type = {
+        "AP_INVOICE": settings.zapier_hook_url_ap_invoice,
+        "CLAIM_PACKET": settings.zapier_hook_url_claim_packet,
+        "CAMPAIGN_BRIEF": settings.zapier_hook_url_campaign_brief,
+        "CDP_ONBOARDING": settings.zapier_hook_url_cdp_onboarding,
+    }
+    routed = configured(settings.zapier_hook_url_routed)
+    if payload.get("event_type") == "DOCUMENT_ROUTED" and routed is not None:
+        return routed
+    return configured(by_type.get(str(payload.get("document_type")))) or configured(
+        settings.zapier_hook_url
+    )
 
 
 def calculate_backoff(attempt: int, base: int, cap: int, rng: Random) -> float:

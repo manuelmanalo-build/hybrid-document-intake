@@ -1,0 +1,114 @@
+{
+  "event_version": "1.0",
+  "event_type": "DOCUMENT_APPROVED",
+  "approved_business_record_id": "00000000-0000-4000-8000-000000000003",
+  "document_id": "00000000-0000-4000-9000-000000000003",
+  "graph_run_id": "00000000-0000-4000-a000-000000000003",
+  "business_data": {},
+  "event_key": "approved-record:00000000-0000-4000-8000-000000000101:DOCUMENT_APPROVED",
+  "document_type": "CAMPAIGN_BRIEF",
+  "work_request": {
+    "schema_version": "work-request-v1",
+    "client_name": "Harbor & Vine Coffee Co.",
+    "brand": "Harbor & Vine",
+    "campaign_name": "Winter Warmers",
+    "sow_number": "SOW-1001",
+    "launch_date": "2026-12-01",
+    "end_date": "2027-01-31",
+    "budget_total": "85000",
+    "primary_kpi": "Store visits vs. last year",
+    "kpi_target": "+8%",
+    "tasks": [
+      {
+        "task_key": "brief-1",
+        "title": "Winter Warmers: 12 × Social static post",
+        "asset_type": "SOCIAL_STATIC",
+        "service": "SOCIAL",
+        "quantity": 12,
+        "description": "Menu feature posts",
+        "due_date": "2026-11-20",
+        "requested_in": "BRIEF"
+      },
+      {
+        "task_key": "brief-2",
+        "title": "Winter Warmers: 4 × Social video (15s or under)",
+        "asset_type": "SOCIAL_VIDEO",
+        "service": "SOCIAL",
+        "quantity": 4,
+        "description": "Barista cut-downs",
+        "due_date": "2026-11-20",
+        "requested_in": "BRIEF"
+      },
+      {
+        "task_key": "brief-3",
+        "title": "Winter Warmers: 1 × Display banner set",
+        "asset_type": "DISPLAY_SET",
+        "service": "DISPLAY",
+        "quantity": 1,
+        "description": "Geo-targeted banner set, 6 sizes",
+        "due_date": "2026-11-24",
+        "requested_in": "BRIEF"
+      }
+    ]
+  },
+  "jira": {
+    "schema_version": "jira-issues-v1",
+    "epic": {
+      "key": "epic",
+      "issue_type": "Epic",
+      "summary": "Winter Warmers (Harbor & Vine)",
+      "description": "Client: Harbor & Vine Coffee Co.\nBrand: Harbor & Vine\nSOW: SOW-1001\nLaunch: 2026-12-01\nEnd: 2027-01-31\nBudget: 85000\nKPI: Store visits vs. last year → +8%",
+      "labels": [
+        "campaign",
+        "winter-warmers",
+        "intake-000-000000000101-documen"
+      ],
+      "priority": "Medium",
+      "due_date": "2026-12-01"
+    },
+    "issues": [
+      {
+        "key": "brief-1",
+        "issue_type": "Task",
+        "summary": "Winter Warmers: 12 × Social static post",
+        "description": "Deliverable: SOCIAL_STATIC\nQuantity: 12\nDescription: Menu feature posts\nRequested in: BRIEF",
+        "labels": [
+          "campaign",
+          "winter-warmers",
+          "intake-000-000000000101-documen",
+          "social"
+        ],
+        "priority": "Medium",
+        "due_date": "2026-11-20"
+      },
+      {
+        "key": "brief-2",
+        "issue_type": "Task",
+        "summary": "Winter Warmers: 4 × Social video (15s or under)",
+        "description": "Deliverable: SOCIAL_VIDEO\nQuantity: 4\nDescription: Barista cut-downs\nRequested in: BRIEF",
+        "labels": [
+          "campaign",
+          "winter-warmers",
+          "intake-000-000000000101-documen",
+          "social"
+        ],
+        "priority": "Medium",
+        "due_date": "2026-11-20"
+      },
+      {
+        "key": "brief-3",
+        "issue_type": "Task",
+        "summary": "Winter Warmers: 1 × Display banner set",
+        "description": "Deliverable: DISPLAY_SET\nQuantity: 1\nDescription: Geo-targeted banner set, 6 sizes\nRequested in: BRIEF",
+        "labels": [
+          "campaign",
+          "winter-warmers",
+          "intake-000-000000000101-documen",
+          "display"
+        ],
+        "priority": "Medium",
+        "due_date": "2026-11-24"
+      }
+    ]
+  }
+}

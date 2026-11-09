@@ -429,9 +429,34 @@ async def test_approved_brief_emits_one_task_per_deliverable_and_records_client_
     await _dispatch_resume(settings)
 
     with app.state.session_factory() as session:  # type: ignore[attr-defined]
-        event = session.scalar(select(OutboxEvent).where(OutboxEvent.document_id == document_id))
+        event = session.scalar(
+            select(OutboxEvent).where(
+                OutboxEvent.document_id == document_id,
+                OutboxEvent.event_type == "DOCUMENT_APPROVED",
+            )
+        )
         assert event is not None
         assert event.payload["document_type"] == "CAMPAIGN_BRIEF"
+        jira = event.payload["jira"]
+        assert jira["epic"]["summary"] == "Winter Warmers (Harbor & Vine)"
+        assert jira["epic"]["issue_type"] == "Epic"
+        assert [issue["summary"] for issue in jira["issues"]][0] == (
+            "Winter Warmers: 12 × Social static post"
+        )
+        assert jira["issues"][0]["due_date"] == "2026-11-20"
+        assert all(" " not in label for issue in jira["issues"] for label in issue["labels"])
+        assert event.payload["event_key"].startswith("approved-record:")
+        routed = session.scalar(
+            select(OutboxEvent).where(
+                OutboxEvent.document_id == document_id,
+                OutboxEvent.event_type == "DOCUMENT_ROUTED",
+            )
+        )
+        assert routed is not None
+        assert routed.approved_business_record_id is None
+        assert routed.payload["queue"] == "READY_FOR_PLANNING"
+        assert routed.payload["service_level"]["target_hours"] == 24
+        assert routed.payload["alert"]["title"].startswith("Brief routed to Ready for planning")
         work_request = event.payload["work_request"]
         assert work_request["sow_number"] == "SOW-1001"
         assert [task["task_key"] for task in work_request["tasks"]] == [

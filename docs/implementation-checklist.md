@@ -161,3 +161,12 @@ implementations.
 - [x] Add the live CDP diagnostic: mapping precision and recall, queue agreement, and three gates
   (no false ready, every identifier-bearing sample in privacy review, zero identifier leaks).
 
+## Zapier destinations (Jira and QuickBooks)
+
+- [x] Add destination-ready blocks: `quickbooks-bill-v1` for invoices, `jira-issues-v1` for claims,
+  briefs, and CDP onboarding, and the claim summary with routing context.
+- [x] Emit `DOCUMENT_ROUTED` queue alerts on routing and reviewer re-routes (migration 0010).
+- [x] Route events to per-type Zapier hooks with a default fallback.
+- [x] Publish sample payloads generated from the builders, with a drift test, and Zap recipes.
+- [ ] Build the Zaps in Zapier (briefs → Jira first).
+

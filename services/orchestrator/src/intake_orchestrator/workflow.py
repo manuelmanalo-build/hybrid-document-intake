@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from intake_api.application.integration_payloads import invoice_payload
+from intake_api.application.routed_events import build_routed_outbox_event
 from intake_api.domain.enums import (
     AuditEventType,
     GraphRunStatus,
@@ -17,6 +19,7 @@ from intake_api.domain.models import (
     AgentRecommendation,
     AgentRun,
     ApprovedBusinessRecord,
+    ClaimRoutingDecision,
     ConfidenceComponent,
     ConfidenceRun,
     ExtractionCandidate,
@@ -32,6 +35,7 @@ from intake_api.domain.models import (
     ValidationResult,
     ValidationRun,
 )
+from intake_api.infrastructure.config import Settings
 from intake_orchestrator.audit_events import workflow_audit as _workflow_audit
 from intake_orchestrator.confidence import (
     ALGORITHM_VERSION,
@@ -263,9 +267,11 @@ class PostgresWorkflowBackend:
         session_factory: async_sessionmaker[AsyncSession],
         *,
         webhook_max_attempts: int = 5,
+        settings: Settings | None = None,
     ) -> None:
         self._sessions = session_factory
         self._webhook_max_attempts = webhook_max_attempts
+        self._settings = settings or Settings()
 
     async def initialize_case(
         self, *, graph_run_id: UUID, tenant_id: UUID, document_id: UUID
@@ -642,11 +648,62 @@ class PostgresWorkflowBackend:
             task.validation_run_id = validation_run_id
             task.confidence_run_id = confidence_run_id
             task.recommendation_id = recommendation_id
+            await self._add_routed_event(session, task=task)
             # Make the application-owned review task usable even if the orchestrator crashes
             # after the durable interrupt checkpoint but before dispatcher reconciliation.
             graph_run.status = GraphRunStatus.INTERRUPTED
             graph_run.last_error_code = None
         return task_id
+
+    async def _add_routed_event(self, session: AsyncSession, *, task: ReviewTask) -> None:
+        """Emit DOCUMENT_ROUTED once per review cycle for packs that route to queues."""
+        if task.validation_run_id is None or task.extraction_candidate_id is None:
+            return
+        decision = await session.scalar(
+            select(ClaimRoutingDecision).where(
+                ClaimRoutingDecision.tenant_id == task.tenant_id,
+                ClaimRoutingDecision.validation_run_id == task.validation_run_id,
+            )
+        )
+        candidate = await session.scalar(
+            select(ExtractionCandidate).where(
+                ExtractionCandidate.tenant_id == task.tenant_id,
+                ExtractionCandidate.id == task.extraction_candidate_id,
+            )
+        )
+        if decision is None or candidate is None:
+            return
+        reviewed = await session.scalar(
+            select(ReviewedDocumentVersion)
+            .where(
+                ReviewedDocumentVersion.tenant_id == task.tenant_id,
+                ReviewedDocumentVersion.review_task_id == task.id,
+            )
+            .order_by(ReviewedDocumentVersion.review_cycle.desc())
+            .limit(1)
+        )
+        event = build_routed_outbox_event(
+            settings=self._settings,
+            tenant_id=task.tenant_id,
+            document_id=task.document_id,
+            graph_run_id=task.graph_run_id,
+            document_type=candidate.document_type,
+            review_task_id=task.id,
+            review_cycle=task.cycle,
+            queue=decision.review_queue.value,
+            routing_version=decision.routing_version,
+            routed_by="RULES",
+            reason_code=decision.reason_code,
+            flags=list(decision.flags),
+            business_data=dict(reviewed.business_data if reviewed else candidate.candidate_data),
+        )
+        if event is not None and not await session.scalar(
+            select(OutboxEvent.id).where(
+                OutboxEvent.tenant_id == task.tenant_id,
+                OutboxEvent.idempotency_key == event.idempotency_key,
+            )
+        ):
+            session.add(event)
 
     async def review_interrupt_payload(
         self, *, review_task_id: UUID, tenant_id: UUID
@@ -839,10 +896,14 @@ class PostgresWorkflowBackend:
             approved_pack = pack_for_type(candidate_type)
             pack_payload = (
                 await approved_pack.workflow.outbox_payload(
-                    session, tenant_id=tenant_id, business_data=reviewed.business_data
+                    session,
+                    tenant_id=tenant_id,
+                    document_id=document_id,
+                    event_key=idempotency_key,
+                    business_data=reviewed.business_data,
                 )
                 if approved_pack
-                else {}
+                else invoice_payload(reviewed.business_data)
             )
             if not await session.scalar(
                 select(OutboxEvent.id).where(
@@ -866,6 +927,7 @@ class PostgresWorkflowBackend:
                             "document_id": str(document_id),
                             "graph_run_id": str(graph_run_id),
                             "business_data": reviewed.business_data,
+                            "event_key": idempotency_key,
                             **pack_payload,
                         },
                         status="PENDING",
