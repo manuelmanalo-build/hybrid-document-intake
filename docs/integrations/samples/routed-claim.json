@@ -1,0 +1,37 @@
+{
+  "event_type": "DOCUMENT_ROUTED",
+  "event_version": "1.0",
+  "event_key": "routed:00000000-0000-4000-8000-0000000000c1:1:rules",
+  "document_type": "CLAIM_PACKET",
+  "document_id": "00000000-0000-4000-8000-0000000000d1",
+  "review_task_id": "00000000-0000-4000-8000-0000000000c1",
+  "review_cycle": 1,
+  "queue": "BODILY_INJURY_ADJUSTER",
+  "queue_label": "Bodily injury",
+  "routing_version": "claim-routing-v1",
+  "routed_by": "RULES",
+  "reason_code": "INJURY_INDICATED",
+  "flags": [
+    "INJURY_INDICATED",
+    "INJURY_CONFLICT"
+  ],
+  "priority": "High",
+  "service_level": {
+    "target_hours": 2,
+    "due_at": "2026-11-09T16:00:00+00:00"
+  },
+  "summary": {
+    "reference": "NFM-PA-4472433",
+    "party": "Danielle Okafor",
+    "subject": "2020 Toyota RAV4 XLE",
+    "event_label": "Loss",
+    "event_date": "2026-09-22",
+    "context": "Rear-ended by other party",
+    "amount": "2415.90",
+    "item_count": null
+  },
+  "alert": {
+    "title": "Claim routed to Bodily injury: Danielle Okafor · 2020 Toyota RAV4 XLE",
+    "text": "Claim routed to Bodily injury: Danielle Okafor · 2020 Toyota RAV4 XLE\nWhy: INJURY_INDICATED, INJURY_CONFLICT\nFirst review due by 2026-11-09 16:00 UTC."
+  }
+}

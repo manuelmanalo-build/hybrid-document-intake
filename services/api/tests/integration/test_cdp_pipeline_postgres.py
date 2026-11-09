@@ -337,8 +337,21 @@ async def test_clean_request_is_ready_duplicate_is_caught_and_approval_emits_a_p
     await _dispatch_resume(settings)
 
     with app.state.session_factory() as session:  # type: ignore[attr-defined]
-        event = session.scalar(select(OutboxEvent).where(OutboxEvent.document_id == first))
+        event = session.scalar(
+            select(OutboxEvent).where(
+                OutboxEvent.document_id == first, OutboxEvent.event_type == "DOCUMENT_APPROVED"
+            )
+        )
         assert event is not None
+        jira = event.payload["jira"]
+        assert (
+            jira["epic"]["summary"]
+            == "Onboard Shopify orders (US store) (Harbor & Vine Coffee Co.)"
+        )
+        mapping_story = next(issue for issue in jira["issues"] if issue["key"] == "mapping")
+        assert "customer_email → email_address" in mapping_story["description"]
+        assert len(jira["mapping_rows"]) == 6
+        assert "example.com" not in str(event.payload)
         plan = event.payload["onboarding_plan"]
         assert plan["agreement_number"] == "DPA-2001"
         assert [task["task_key"] for task in plan["tasks"]] == [

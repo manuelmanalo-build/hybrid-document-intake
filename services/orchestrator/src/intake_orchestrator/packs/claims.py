@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intake_api.application.integration_payloads import claim_payload
 from intake_api.domain.enums import (
     AuditEventType,
     ClaimKeyStatus,
@@ -717,11 +718,31 @@ class ClaimWorkflow:
             key.status = ClaimKeyStatus.REJECTED
 
     async def outbox_payload(
-        self, session: AsyncSession, *, tenant_id: UUID, business_data: Mapping[str, object]
+        self,
+        session: AsyncSession,
+        *,
+        tenant_id: UUID,
+        document_id: UUID,
+        event_key: str,
+        business_data: Mapping[str, object],
     ) -> dict[str, object]:
-        # A claim-specific integration payload is deferred (ADR 0008); label the type only.
-        del session, tenant_id, business_data
-        return {"document_type": "CLAIM_PACKET"}
+        """An approved claim with its routing context and a Jira issue for the claims project."""
+        decision = await session.scalar(
+            select(ClaimRoutingDecision)
+            .where(
+                ClaimRoutingDecision.tenant_id == tenant_id,
+                ClaimRoutingDecision.document_id == document_id,
+            )
+            .order_by(ClaimRoutingDecision.created_at.desc())
+            .limit(1)
+        )
+        return claim_payload(
+            business_data,
+            queue=decision.review_queue.value if decision else None,
+            reason_code=decision.reason_code if decision else None,
+            flags=list(decision.flags) if decision else [],
+            event_key=event_key,
+        )
 
 
 CLAIMS_PACK = DomainPack(

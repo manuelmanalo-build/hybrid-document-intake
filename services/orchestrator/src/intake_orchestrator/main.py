@@ -27,7 +27,7 @@ async def async_main() -> None:
     repository = GraphRunRepository(session_factory)
     resume_repository = GraphResumeRepository(session_factory)
     workflow = PostgresWorkflowBackend(
-        session_factory, webhook_max_attempts=settings.webhook_max_attempts
+        session_factory, webhook_max_attempts=settings.webhook_max_attempts, settings=settings
     )
     resolution_agent = ConfiguredResolutionAgent(settings=settings, session_factory=session_factory)
     try:

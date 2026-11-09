@@ -29,6 +29,7 @@ from intake_api.application.problems import (
     ResourceNotFound,
     ReviewConflict,
 )
+from intake_api.application.routed_events import build_routed_outbox_event
 from intake_api.domain.enums import ActorType, AuditEventType, ReviewQueue, UserRole
 from intake_api.domain.models import (
     AuditEvent,
@@ -325,6 +326,32 @@ class ReviewQueueService:
                     claim.release_reason = "REROUTED"
                 task.claimed_by_user_id = None
             task.lock_version += 1
+            reroute_count = session.scalar(
+                select(func.count())
+                .select_from(ClaimReroute)
+                .where(
+                    ClaimReroute.tenant_id == identity.tenant_id,
+                    ClaimReroute.review_task_id == task.id,
+                )
+            )
+            routed = build_routed_outbox_event(
+                settings=self._settings,
+                tenant_id=task.tenant_id,
+                document_id=task.document_id,
+                graph_run_id=task.graph_run_id,
+                document_type=document_type,
+                review_task_id=task.id,
+                review_cycle=task.cycle,
+                queue=command.to_queue.value,
+                routing_version=None,
+                routed_by="REVIEWER",
+                reason_code="REVIEWER_REROUTE",
+                flags=current.flags,
+                business_data=_business_data(session, task),
+                suffix=f"reroute-{(reroute_count or 0) + 1}",
+            )
+            if routed is not None:
+                session.add(routed)
             session.add(
                 AuditEvent(
                     tenant_id=task.tenant_id,

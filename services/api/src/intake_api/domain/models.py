@@ -926,7 +926,8 @@ class OutboxEvent(Base):
     tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
     document_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     graph_run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
-    approved_business_record_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    # Null for events that are not tied to an approval, such as DOCUMENT_ROUTED queue alerts.
+    approved_business_record_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
     payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
