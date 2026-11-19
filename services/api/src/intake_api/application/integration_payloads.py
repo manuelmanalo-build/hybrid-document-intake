@@ -8,6 +8,7 @@ it keep working. Destinations deduplicate on `event_key` (Jira label) or the inv
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
@@ -68,8 +69,12 @@ def jira_summary(text: str) -> str:
 
 
 def event_label(event_key: str) -> str:
-    """A stable per-event Jira label; a Zap searches for it before creating, to stay idempotent."""
-    return f"intake-{jira_label(event_key)[-24:]}"
+    """A stable, unique per-event Jira label; a Zap searches for it before creating issues.
+
+    A short SHA-256 digest of the event key, so every event gets a distinct label that is never
+    truncated mid-word.
+    """
+    return f"intake-{hashlib.sha256(event_key.encode()).hexdigest()[:16]}"
 
 
 def _text(value: object) -> str | None:
