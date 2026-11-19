@@ -4,6 +4,7 @@ from intake_api.application.integration_payloads import (
     brief_jira,
     cdp_jira,
     claim_payload,
+    event_label,
     invoice_payload,
     jira_label,
     jira_summary,
@@ -126,3 +127,12 @@ def test_routed_event_carries_a_ready_to_post_alert() -> None:
     assert event["alert"]["title"] == (  # type: ignore[index]
         "Onboarding request routed to Privacy review: Lumen Home · Braze customer profiles"
     )
+
+
+def test_event_labels_are_short_unique_and_stable() -> None:
+    first = event_label("approved-record:a:DOCUMENT_APPROVED")
+
+    assert first == event_label("approved-record:a:DOCUMENT_APPROVED")
+    assert first != event_label("approved-record:b:DOCUMENT_APPROVED")
+    assert first.startswith("intake-")
+    assert len(first) == len("intake-") + 16
