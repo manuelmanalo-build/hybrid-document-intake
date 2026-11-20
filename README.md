@@ -16,7 +16,7 @@ check it and send it to the right team, and a person approves before anything is
 *A campaign brief approved in the review screen, as it arrives in Jira: one epic, one task per deliverable.*
 
 The AI reads and proposes; it never decides. Rules choose the queue, people approve, and every step
-is recorded. **New here, or not technical? Read the [business case overview](docs/overview.md):**
+is recorded. **New here? Read the [business case overview](docs/overview.md):**
 one campaign brief followed from upload to tasks in Jira. All data in the repository is fictional.
 
 ## For engineers
