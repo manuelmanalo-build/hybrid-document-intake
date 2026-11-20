@@ -168,5 +168,7 @@ implementations.
 - [x] Emit `DOCUMENT_ROUTED` queue alerts on routing and reviewer re-routes (migration 0010).
 - [x] Route events to per-type Zapier hooks with a default fallback.
 - [x] Publish sample payloads generated from the builders, with a drift test, and Zap recipes.
-- [ ] Build the Zaps in Zapier (briefs → Jira first).
+- [x] Build and verify the briefs → Jira Zap end to end (approval in the workbench → epic and one
+  task per deliverable), with the shared, tested Code step in `docs/integrations/zapier`.
+- [ ] Build the CDP → Jira, claims → Jira, invoices → QuickBooks, and alerts → Slack Zaps.
 
