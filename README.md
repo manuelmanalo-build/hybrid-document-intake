@@ -168,5 +168,5 @@ configuration rejects it.
 The local profile also starts mock Zapier on `http://localhost:8090`. All services have active
 health checks and depend on readiness or successful one-shot migrations rather than fixed sleeps.
 See [demo guide](docs/demo-guide.md), [operations runbook](docs/operations-runbook.md),
-[functional specification](docs/functional-spec.md), [technical specification](docs/technical-spec.md),
-and the [independent release-readiness review](docs/release-readiness-review.md).
+[functional specification](docs/functional-spec.md), and
+[technical specification](docs/technical-spec.md).
