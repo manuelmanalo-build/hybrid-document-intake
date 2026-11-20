@@ -1,5 +1,22 @@
 # Hybrid Agentic Document Intake Demo
 
+**A document-intake platform that turns the documents a business receives into checked, approved
+work in the tools its teams already use.** An AI model reads each document, fixed business rules
+check it and send it to the right team, and a person approves before anything is created.
+
+| Document | What the platform produces | Where it goes |
+| --- | --- | --- |
+| Agency campaign briefs | A work request with one task per deliverable | Jira (running end to end) |
+| Supplier invoices | A checked bill | QuickBooks (bill prepared) |
+| Insurance claim packets | A claim file routed to the right adjuster queue | Jira issue (prepared) |
+| Customer-data onboarding requests | A field-mapping plan, with personal data screened out before the AI sees it | Jira (plan prepared) |
+
+The AI reads and proposes; it never decides. Rules choose the queue, people approve, and every step
+is recorded. **New here, or not technical? Read the [plain-language overview](docs/overview.md):**
+one campaign brief followed from upload to tasks in Jira. All data in the repository is fictional.
+
+## For engineers
+
 This monorepo is governed by a deterministic LangGraph parent graph with a bounded LangChain agent
 subgraph. The current executable increment implements secure PDF intake, immutable local storage,
 tenant-scoped PostgreSQL metadata/audit/idempotency, a durable graph-run request, and a separately
@@ -11,6 +28,11 @@ resume atomically creates an approved record and idempotent webhook outbox event
 worker delivers that event with leasing, bounded retry, jitter, authentication/signing, a delivery
 ledger, and dead-letter handling. Angular provides intake and review, while the API-only Streamlit
 dashboard exposes tenant-scoped operations projections and authorized replay commands.
+
+Document types are domain packs ([ADR 0009](docs/adr/0009-campaign-brief-document-type-and-domain-packs.md)):
+claims ([ADR 0008](docs/adr/0008-claim-packet-document-type.md)), campaign briefs, and CDP onboarding
+([ADR 0010](docs/adr/0010-cdp-onboarding-document-type.md)) run on the same graph, review API, and
+outbox as invoices; [Zapier integration](docs/zapier-integration.md) covers Jira and QuickBooks.
 
 See [the implementation checklist](docs/implementation-checklist.md),
 [architecture overview](docs/architecture-overview.md), and
