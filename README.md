@@ -12,7 +12,7 @@ check it and send it to the right team, and a person approves before anything is
 | Customer-data onboarding requests | A field-mapping plan, with personal data screened out before the AI sees it | Jira (plan prepared) |
 
 The AI reads and proposes; it never decides. Rules choose the queue, people approve, and every step
-is recorded. **New here, or not technical? Read the [plain-language overview](docs/overview.md):**
+is recorded. **New here, or not technical? Read the [business case overview](docs/overview.md):**
 one campaign brief followed from upload to tasks in Jira. All data in the repository is fictional.
 
 ## For engineers
