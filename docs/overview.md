@@ -1,6 +1,6 @@
 # From brief to booked work: what the intake demo shows
 
-A plain-language overview for non-technical readers. Engineers: start with the [README](../README.md).
+An overview of the business case. Engineers: start with the [README](../README.md).
 
 ## What this is
 
