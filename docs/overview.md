@@ -42,6 +42,8 @@ The demo takes a brief from upload to ready-to-work tasks in Jira, with a person
 
 **The routine case.** A coffee chain sends a one-page brief for its "Winter Warmers" campaign: 12 social posts, 4 short videos, and a set of display banners, launching December 1. The budget fits the contract and every deliverable has enough production time, so the brief lands in *ready for planning*. One approval later, Jira shows the campaign epic with three tasks, each due on the date the client asked for.
 
+![The Winter Warmers epic in Jira with its three deliverable tasks](images/brief-to-jira.png)
+
 **The catch.** A second brief from the same client looks just as routine: launch January 5. But a follow-up email in the packet moves the launch to November 30. The system reads both, notices the conflict, and calculates that the video can no longer be produced in time. The brief goes to *rush review* with the two dates side by side, instead of quietly entering the plan with the wrong deadline.
 
 All clients, briefs, and numbers in the demo are fictional.

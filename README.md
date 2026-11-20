@@ -11,6 +11,10 @@ check it and send it to the right team, and a person approves before anything is
 | Insurance claim packets | A claim file routed to the right adjuster queue | Jira issue (prepared) |
 | Customer-data onboarding requests | A field-mapping plan, with personal data screened out before the AI sees it | Jira (plan prepared) |
 
+![The Campaign Delivery project in Jira: the Winter Warmers epic and one task per deliverable, created from an approved brief](docs/images/brief-to-jira.png)
+
+*A campaign brief approved in the review screen, as it arrives in Jira: one epic, one task per deliverable.*
+
 The AI reads and proposes; it never decides. Rules choose the queue, people approve, and every step
 is recorded. **New here, or not technical? Read the [business case overview](docs/overview.md):**
 one campaign brief followed from upload to tasks in Jira. All data in the repository is fictional.
