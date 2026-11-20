@@ -42,34 +42,48 @@ the default. Treat every hook URL as a secret: catch-hook URLs accept anyone who
 App and action names below are as they appear in Zapier's editor at the time of writing; check them
 when you build the Zap.
 
-### Briefs → Jira (build first)
+### Briefs → Jira (built and verified end to end)
 
-1. **Webhooks by Zapier → Catch Raw Hook** (raw, so the `Authorization` header is visible).
-2. **Filter**: continue only if the header matches your token and `document_type` is
-   `CAMPAIGN_BRIEF`.
-3. **Jira Software Cloud → Find Issue** by the label in `jira.epic.labels` that starts with
-   `intake-`. If found, stop: this event was already processed.
-4. **Jira → Create Issue**: issue type `jira.epic.issue_type` (Epic), summary, description, labels,
-   and due date from `jira.epic`.
-5. **Looping by Zapier → Create Loop From Line Items** over `jira.issues`.
-6. **Jira → Create Issue** inside the loop: summary, description, labels, priority, due date, and
-   the epic from step 4 as parent.
+| # | Step | Configuration |
+|---|---|---|
+| 1 | **Webhooks by Zapier → Catch Raw Hook** | Raw, so the `Authorization` header is available. Copy the URL into `INTAKE_ZAPIER_HOOK_URL_CAMPAIGN_BRIEF`. |
+| 2 | **Code by Zapier → Run Python** | Paste [`integrations/zapier/jira_code_step.py`](integrations/zapier/jira_code_step.py). Input Data: `body` ← **1. Raw Body**, `auth` ← **1. Headers Http Authorization**, `token` ← the shared token, `expected_type` ← `CAMPAIGN_BRIEF`. Map `body` and `auth` as **pills** from the picker; typed field names are passed as literal text. |
+| 3 | **Filter by Zapier** | Continue only if `ok` (Text) exactly matches `true`. |
+| 4 | **Storage by Zapier → Get Value** | Key ← `event_label`. Set **"success when nothing is found"** to **Yes**; otherwise every new event stops here. |
+| 5 | **Filter by Zapier** | Continue only if **Zap Search Was Found Status** (Boolean) is false. This is the duplicate guard. |
+| 6 | **Jira Software Cloud → Create Issue** | Issue type **Epic**; summary, description, labels, due date ← the `epic_*` fields. |
+| 7 | **Storage by Zapier → Set Value** | Key ← `event_label`; value ← the epic's **Key** from step 6. It runs before the loop, so a retry after a partial failure cannot create a second epic. |
+| 8 | **Looping by Zapier → Create Loop From Text** | Values to loop: `summary` ← `issue_summaries`, `description` ← `issue_descriptions`, `labels` ← `issue_labels`, `due_date` ← `issue_due_dates`, `priority` ← `issue_priorities`. Custom delimiter `~~~`; trim whitespace; maximum 50 iterations. |
+| 9 | **Jira Software Cloud → Create Issue** (runs once per loop item) | Issue type **Task**; summary, description, labels, due date, priority ← the **Loop Values** fields (not the Code step's). **Parent** ← the **Key** from step 6, entered through the field's **Custom** value option. Choosing an epic from the dropdown fixes the parent to that one epic, and later runs fail with "parent epic not located". |
 
-Each loop iteration is a separate Zapier task: a three-deliverable brief uses about six tasks.
+Jira's **Find Issue** search offers only summary, key, and fields (no JQL), so it cannot look issues
+up by label; Storage by Zapier holds the processed event labels instead. If a run fails after the
+epic exists, use **Replay** in Zap History: it resumes from the failed step with the original data,
+and the duplicate guard does not interfere.
+
+Set `INTAKE_ZAPIER_HOOK_URL_ROUTED` (to the mock service locally, or to the alerts Zap) so routed
+events do not reach this Zap. The Code step would reject them, but each would still use a task.
+Each loop iteration is a separate Zapier task: a three-deliverable brief uses about ten tasks.
+
+**Hardening:** keep the token out of the Input Data by storing it in Zapier's secret store and
+reading it with `StoreClient` inside the Code step.
 
 ### CDP onboarding → Jira and a mapping sheet
 
-Same as briefs, with stories instead of tasks. Zapier cannot nest loops, so write the mapping
-specification with one bulk step: **Google Sheets → Create Multiple Spreadsheet Rows** from
-`jira.mapping_rows`, or a second Zap. The payload contains field names and attribute classes only,
-never sample values.
+The brief Zap with three changes: `expected_type` ← `CDP_ONBOARDING`, step 9 creates **Stories**
+(the loop also offers `issue_types`), and the mapping specification is written after the loop with
+**Google Sheets → Create Multiple Spreadsheet Rows** from `jira.mapping_rows` (or from a second
+Zap, because Zapier cannot nest loops). The payload contains field names and attribute classes
+only, never sample values.
 
 ### Claims → Jira
 
-`jira.epic` is null and `jira.issues` has one issue: summary `FNOL: insured · vehicle · loss date`,
-priority `High` for bodily injury, SIU, and coverage queues, and labels for the queue and each flag.
-No loop is needed. Large carriers usually integrate their core claims system through its own API;
-this recipe fits MGAs, administrators, and the demo.
+Steps 1–5 with `expected_type` ← `CLAIM_PACKET`. The Code step returns `has_epic` = `false` and one
+issue, so skip the epic and the loop: one **Create Issue** from the first (only) values of the
+`issue_*` fields, then **Set Value** with the new issue's key. Summary `FNOL: insured · vehicle ·
+loss date`; priority `High` for bodily injury, SIU, and coverage queues; labels for the queue and
+each flag. Large carriers usually integrate their core claims system through its own API; this
+recipe fits MGAs, administrators, and the demo.
 
 ### Invoices → QuickBooks Online
 
