@@ -80,12 +80,34 @@ class CampaignBriefCandidate(StrictContract):
     budget_total: ExtractedField[Decimal]
     launch_date: ExtractedField[date]
     end_date: ExtractedField[date]
-    launch_date_in_correspondence: ExtractedField[date]
+    launch_date_in_correspondence: Annotated[
+        ExtractedField[date],
+        Field(
+            description=(
+                "Only a launch date stated in a separate, later email or note that differs from "
+                "the brief's launch date. Value null when the packet has no such message."
+            )
+        ),
+    ]
     approver: ExtractedField[str]
     mandatories: ExtractedField[str]
-    deliverables: Annotated[list[ExtractedDeliverable], Field(max_length=MAX_DELIVERABLES)]
+    deliverables: Annotated[
+        list[ExtractedDeliverable],
+        Field(
+            max_length=MAX_DELIVERABLES,
+            description="Every deliverable requested in the brief itself.",
+        ),
+    ]
     deliverables_added_in_correspondence: Annotated[
-        list[ExtractedDeliverable], Field(max_length=MAX_DELIVERABLES)
+        list[ExtractedDeliverable],
+        Field(
+            max_length=MAX_DELIVERABLES,
+            description=(
+                "Only deliverables that a separate, later email or note requests in addition to "
+                "the brief. Empty when the packet has no such message. Never repeat the brief's "
+                "deliverables here."
+            ),
+        ),
     ]
 
 

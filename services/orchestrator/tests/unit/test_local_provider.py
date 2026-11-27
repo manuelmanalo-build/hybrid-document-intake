@@ -174,6 +174,8 @@ async def test_structured_extraction_round_trips_through_a_local_server(
     assert body["temperature"] == 0
     assert body["max_tokens"] == LOCAL_MAX_OUTPUT_TOKENS
     assert body["response_format"]["type"] == "json_schema"
+    properties = body["response_format"]["json_schema"]["schema"]["properties"]
+    assert "Never repeat" in properties["deliverables_added_in_correspondence"]["description"]
 
 
 @pytest.mark.asyncio
