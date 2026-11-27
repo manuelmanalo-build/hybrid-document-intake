@@ -188,3 +188,20 @@ async def test_agent_tool_calls_round_trip_through_a_local_server(server: FakeLo
 
     assert require_one_tool_call(message) == ("inspect_document", {"document_id": "doc-1"})  # type: ignore[arg-type]
     assert server.requests[0][2]["tools"][0]["function"]["name"] == "inspect_document"
+
+
+@pytest.mark.asyncio
+async def test_reasoning_effort_is_sent_only_when_configured(server: FakeLocalServer) -> None:
+    @tool
+    def inspect_document(document_id: str) -> str:
+        """Inspect a stored document."""
+        return document_id
+
+    for effort in ("none", "", None):
+        model = create_chat_model(
+            _settings(agent_base_url=server.base_url, agent_reasoning_effort=effort)
+        )
+        await model.bind_tools([inspect_document]).ainvoke([HumanMessage(content="Begin.")])
+
+    sent = [body.get("reasoning_effort") for _, _, body in server.requests]
+    assert sent == ["none", None, None]

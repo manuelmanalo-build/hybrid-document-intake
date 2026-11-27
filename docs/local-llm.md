@@ -32,6 +32,20 @@ A 14-billion-parameter model with tool support is a reasonable starting point on
 the Gemma 4 family adds vision. Model names and tags change often: check
 [ollama.com/search?c=tools](https://ollama.com/search?c=tools) for the current list.
 
+## Thinking models
+
+Many recent open models (for example Qwen 3) "think" by default: they write a long hidden reasoning
+passage before every answer. For this pipeline that mostly costs time, often minutes per packet,
+and it can use up the output budget before the JSON is finished. Set:
+
+```bash
+AGENT_REASONING_EFFORT=none
+```
+
+The platform sends it as `reasoning_effort`, which Ollama's OpenAI-compatible endpoint uses to turn
+thinking off on models that support switching it. Leave it unset to use the model's default, or try
+`low` for a middle ground. Other servers may ignore the field; check their documentation.
+
 ## Setup with Ollama
 
 1. **Install Ollama** from [ollama.com](https://ollama.com) and pull a model:
@@ -57,6 +71,7 @@ the Gemma 4 family adds vision. Model names and tags change often: check
    AGENT_PROVIDER=local
    AGENT_MODEL=qwen3:14b
    AGENT_BASE_URL=http://host.docker.internal:11434/v1
+   AGENT_REASONING_EFFORT=none   # for thinking models; see above
    # Local models are slower: extraction runs inside a tool call, so raise all three limits.
    AGENT_MODEL_TIMEOUT_SECONDS=300
    AGENT_TOOL_TIMEOUT_SECONDS=300
@@ -78,7 +93,7 @@ The evaluations run in your terminal, not in Docker, so use `localhost`:
 
 ```bash
 export AGENT_PROVIDER=local AGENT_MODEL=qwen3:14b AGENT_BASE_URL=http://localhost:11434/v1
-export AGENT_MODEL_TIMEOUT_SECONDS=300
+export AGENT_REASONING_EFFORT=none AGENT_MODEL_TIMEOUT_SECONDS=300
 export PYTHONPATH=.:services/api/src:services/orchestrator/src
 uv run python -m evaluation.live_briefs_extraction
 ```
@@ -101,8 +116,9 @@ From Docker, replace `localhost` with `host.docker.internal`.
 ## How it works
 
 The local provider uses the same OpenAI client as `AGENT_PROVIDER=openai`, pointed at
-`AGENT_BASE_URL`, with temperature 0 and an output budget of 8,192 tokens (sent as `max_tokens`,
-which every compatible server accepts). It never sends `OPENAI_API_KEY`: when `AGENT_API_KEY` is
+`AGENT_BASE_URL`, with temperature 0, an output budget of 8,192 tokens (sent as `max_tokens`,
+which every compatible server accepts), and `reasoning_effort` only when `AGENT_REASONING_EFFORT` is
+set. It never sends `OPENAI_API_KEY`: when `AGENT_API_KEY` is
 empty it sends a placeholder, which local servers ignore. Requests go to
 `/v1/chat/completions`: tool calls for the agent's steps, and `response_format` with a JSON schema
 for extraction. `services/orchestrator/tests/unit/test_local_provider.py` checks this request
@@ -114,6 +130,7 @@ shape against a stand-in server.
 |---|---|
 | Runs end incomplete; the agent stops after a step or two | The model answered in text instead of calling one tool. Try a larger model or one tagged *tools*. |
 | Extraction errors about invalid JSON, or values from the wrong document | Context window too small: see step 2. |
+| Very slow responses, then timeouts, even on a small model | Thinking is on: set `AGENT_REASONING_EFFORT=none`. Then check `ollama ps`: the processor column should read 100% GPU, not a CPU share. |
 | Timeouts | Raise the three timeouts above; check `ollama ps` for CPU offloading. |
 | "Connection refused" from Docker | Wrong `AGENT_BASE_URL` (use `host.docker.internal`), Ollama not running, or on Linux, `OLLAMA_HOST` not set. |
 | Scanned packets fail | The model has no vision support; use a vision model or accept them as errors. |
