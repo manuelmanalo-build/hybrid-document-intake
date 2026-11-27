@@ -82,6 +82,13 @@ class Settings(BaseSettings):
     agent_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("AGENT_API_KEY", "INTAKE_AGENT_API_KEY")
     )
+    # Only for AGENT_PROVIDER=local: sent as `reasoning_effort`. "none" turns thinking off on
+    # thinking models served by Ollama (for example Qwen 3), which is much faster for extraction.
+    # Unset sends nothing, so the server's default applies.
+    agent_reasoning_effort: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AGENT_REASONING_EFFORT", "INTAKE_AGENT_REASONING_EFFORT"),
+    )
     anthropic_api_key: SecretStr | None = Field(
         default=None,
         validation_alias=AliasChoices("ANTHROPIC_API_KEY", "INTAKE_ANTHROPIC_API_KEY"),

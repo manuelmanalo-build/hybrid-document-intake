@@ -198,6 +198,7 @@ def create_chat_model(settings: Settings) -> BaseChatModel:
             max_retries=0,
             temperature=0,
             use_responses_api=False,
+            reasoning_effort=(settings.agent_reasoning_effort or "").strip() or None,
             extra_body={"max_tokens": LOCAL_MAX_OUTPUT_TOKENS},
         )
     raise ValueError("Unsupported configured agent provider")
