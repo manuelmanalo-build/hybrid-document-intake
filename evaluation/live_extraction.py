@@ -220,7 +220,8 @@ def build_extractor(settings: Settings) -> StructuredInvoiceExtractor:
 
 
 def require_cost_approval(settings: Settings, environ: dict[str, str]) -> None:
-    if settings.agent_provider == "stub":
+    # Stub runs are free and labeled as not a measurement; local models cost nothing per call.
+    if settings.agent_provider in ("stub", "local"):
         return
     if environ.get("EVALUATION_LIVE_ENABLED", "false").casefold() != "true":
         raise PermissionError(

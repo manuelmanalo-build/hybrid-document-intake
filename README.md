@@ -69,8 +69,10 @@ Copy `.env.example` to `.env` and replace placeholder credentials before startin
 local Compose profile enables one-click role sessions, so UI users do not copy demo bearer tokens;
 the tokens remain available for CLI examples. The default `AGENT_PROVIDER=stub` needs no live
 model. Set `AGENT_MODEL` and the corresponding provider key to exercise OpenAI, Gemini, or
-Anthropic Claude (`AGENT_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`). LangSmith
-remains disabled and optional.
+Anthropic Claude (`AGENT_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`). To keep documents on your
+own machine, `AGENT_PROVIDER=local` runs an open-weight model through Ollama or any other
+OpenAI-compatible server, with no API key; see [running with a local model](docs/local-llm.md).
+LangSmith remains disabled and optional.
 
 ## Quality commands
 

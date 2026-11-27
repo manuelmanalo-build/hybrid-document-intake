@@ -196,3 +196,11 @@ EVALUATION_LIVE_ENABLED=true uv run python -m evaluation.live_cdp_extraction
 
 Two model calls per packet (40 total); the report is written to `evaluation-live-cdp-report.json`.
 
+### Local, open-weight models
+
+Every live diagnostic also runs against a local model with `AGENT_PROVIDER=local`,
+`AGENT_MODEL=<model>`, and `AGENT_BASE_URL=http://localhost:11434/v1` (Ollama), with no API key and
+no `EVALUATION_LIVE_ENABLED` approval, because local calls cost nothing. Reports record the provider
+and model, so local and cloud runs compare directly. Setup, model requirements, and timeouts are in
+[running with a local model](local-llm.md).
+

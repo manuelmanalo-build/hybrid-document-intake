@@ -121,6 +121,10 @@ services:
   langgraph-orchestrator:
     <<: *python-service
     command: ["python", "-m", "intake_orchestrator.main"]
+    # Lets AGENT_BASE_URL=http://host.docker.internal:11434/v1 reach a model server on the host
+    # (built in on Docker Desktop; host-gateway makes it work on Linux too). See docs/local-llm.md.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       INTAKE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
       INTAKE_CHECKPOINT_DATABASE_URL: postgresql://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}

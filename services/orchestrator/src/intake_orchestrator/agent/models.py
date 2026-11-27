@@ -9,7 +9,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import Runnable
-from pydantic import Field
+from pydantic import Field, SecretStr
 
 from intake_api.infrastructure.config import Settings
 from intake_orchestrator.agent.errors import (
@@ -143,6 +143,12 @@ class StubChatModel(BaseChatModel):
 # Anthropic requires an explicit output budget; a full claim candidate with per-field evidence
 # needs more than the client default.
 ANTHROPIC_MAX_OUTPUT_TOKENS = 4096
+# Output budget for local servers: extraction with per-field evidence needs room. Sent as the
+# classic `max_tokens` field, which every OpenAI-compatible local server accepts.
+LOCAL_MAX_OUTPUT_TOKENS = 8192
+# Sent when no AGENT_API_KEY is set: most local servers ignore the key but the client requires one.
+# A placeholder also guarantees a real OPENAI_API_KEY from the environment is never sent locally.
+LOCAL_PLACEHOLDER_API_KEY = "local-no-key"
 
 
 def create_chat_model(settings: Settings) -> BaseChatModel:
@@ -178,6 +184,21 @@ def create_chat_model(settings: Settings) -> BaseChatModel:
             timeout=settings.agent_model_timeout_seconds,
             max_retries=0,
             stop=None,
+        )
+    if settings.agent_provider == "local":
+        from langchain_openai import ChatOpenAI
+
+        key = settings.agent_api_key
+        configured_key = key if key is not None and key.get_secret_value().strip() else None
+        return ChatOpenAI(
+            model=settings.agent_model,
+            base_url=settings.agent_base_url,
+            api_key=configured_key or SecretStr(LOCAL_PLACEHOLDER_API_KEY),
+            timeout=settings.agent_model_timeout_seconds,
+            max_retries=0,
+            temperature=0,
+            use_responses_api=False,
+            extra_body={"max_tokens": LOCAL_MAX_OUTPUT_TOKENS},
         )
     raise ValueError("Unsupported configured agent provider")
 
