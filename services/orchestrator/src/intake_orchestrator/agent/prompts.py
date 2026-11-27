@@ -61,7 +61,7 @@ CLASSIFICATION_PROMPT_CONTENT_SHA256 = hashlib.sha256(
 ).hexdigest()
 
 # Campaign-brief prompts (ADR 0009), versioned and hashed separately.
-BRIEF_PROMPT_VERSION = "brief-intake-agent-v1"
+BRIEF_PROMPT_VERSION = "brief-intake-agent-v2"
 
 BRIEF_SEGMENTATION_SYSTEM_PROMPT = (
     "Label every page of an agency campaign-brief packet with exactly one of BRIEF, "
@@ -69,14 +69,23 @@ BRIEF_SEGMENTATION_SYSTEM_PROMPT = (
     "or approval."
 )
 
+# v2: small open-weight models copied the brief's deliverables into the correspondence list,
+# which the rules correctly read as an email adding work. The correspondence fields are now
+# spelled out, here and in the schema's field descriptions.
 BRIEF_EXTRACTION_SYSTEM_PROMPT = (
     "Extract a work request from a campaign brief into the required schema. Use null for "
     "unavailable values and cite only bounded supplied evidence with its page. Keep sources "
-    "separate: launch_date comes from the brief; launch_date_in_correspondence only from a "
-    "follow-up email or note that states a different launch; deliverables come from the brief "
-    "and deliverables_added_in_correspondence only from later correspondence. received_date is "
-    "the date the brief was submitted or sent. Map each deliverable to the closest asset_type. "
-    "Never reconcile conflicts and never judge scope, legal risk, routing, or approval."
+    "separate. launch_date and deliverables come from the brief itself. "
+    "launch_date_in_correspondence and deliverables_added_in_correspondence are only for a "
+    "separate, later email or note in the packet: fill them only when such a message states a "
+    "different launch date or requests deliverables the brief does not list. When the packet has "
+    "no such message, set launch_date_in_correspondence to null and "
+    "deliverables_added_in_correspondence to an empty list. Never copy the brief's deliverables "
+    "into deliverables_added_in_correspondence. When an email is the only document in the packet, "
+    "it is the brief: put its launch date and deliverables in launch_date and deliverables. "
+    "received_date is the date the brief was submitted or sent. Map each deliverable to the "
+    "closest asset_type. Never reconcile conflicts and never judge scope, legal risk, routing, or "
+    "approval."
 )
 
 BRIEF_PROMPT_CONTENT_SHA256 = hashlib.sha256(
@@ -85,7 +94,7 @@ BRIEF_PROMPT_CONTENT_SHA256 = hashlib.sha256(
 
 # CDP-onboarding prompts (ADR 0010), versioned and hashed separately. The model only ever receives
 # text that `pii-scanner-v1` has already redacted.
-CDP_PROMPT_VERSION = "cdp-onboarding-agent-v1"
+CDP_PROMPT_VERSION = "cdp-onboarding-agent-v2"
 
 CDP_SEGMENTATION_SYSTEM_PROMPT = (
     "Label every page of a CDP data-source onboarding packet with exactly one of ONBOARDING_FORM, "
@@ -93,16 +102,21 @@ CDP_SEGMENTATION_SYSTEM_PROMPT = (
     "Never judge privacy, legal, or build readiness."
 )
 
+# v2: the correspondence fields are spelled out, as in the brief prompt v2.
 CDP_EXTRACTION_SYSTEM_PROMPT = (
     "Extract a data-source onboarding request into the required schema. Personal data in the text "
     "is already replaced by tokens such as [EMAIL] and [PHONE]; never try to reconstruct it. Use "
     "null for unavailable values and cite only bounded evidence with its page. For each source "
     "field in the data dictionary, record its type, whether the client marked it personal, and the "
     "canonical attribute it maps to as written by the client (null when none is given). Keep "
-    "sources separate: requested_go_live comes from the form; go_live_in_correspondence only "
-    "from a later email stating a different date; fields_added_in_correspondence only from such "
-    "an email. "
-    "Never decide privacy, legal, scope, routing, or approval."
+    "sources separate. requested_go_live and mappings come from the form and data dictionary. "
+    "go_live_in_correspondence and fields_added_in_correspondence are only for a separate, later "
+    "email: fill them only when such an email states a different go-live date or adds source "
+    "fields the dictionary does not list. When the packet has no such email, set "
+    "go_live_in_correspondence to null and fields_added_in_correspondence to an empty list. Never "
+    "copy the dictionary's fields into fields_added_in_correspondence. When an email is the only "
+    "document in the packet, it is the request: put its go-live and fields in requested_go_live "
+    "and mappings. Never decide privacy, legal, scope, routing, or approval."
 )
 
 CDP_PROMPT_CONTENT_SHA256 = hashlib.sha256(

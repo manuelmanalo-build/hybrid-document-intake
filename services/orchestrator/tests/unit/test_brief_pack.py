@@ -89,7 +89,7 @@ async def test_live_extractor_stamps_provenance_and_keeps_deliverable_evidence()
         model=FakeStructuredModel(payload),  # type: ignore[arg-type]
         provider="anthropic",
         model_name="configured-model",
-        prompt_version="brief-intake-agent-v1",
+        prompt_version="brief-intake-agent-v2",
     )
 
     brief = await extractor.extract(strategy="VISUAL", bounded_content=CONTENT)

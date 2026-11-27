@@ -82,11 +82,32 @@ class OnboardingRequestCandidate(StrictContract):
     retention_days: ExtractedField[int]
     estimated_records: ExtractedField[int]
     requested_go_live: ExtractedField[date]
-    go_live_in_correspondence: ExtractedField[date]
+    go_live_in_correspondence: Annotated[
+        ExtractedField[date],
+        Field(
+            description=(
+                "Only a go-live date stated in a separate, later email that differs from the "
+                "form's requested go-live. Value null when the packet has no such email."
+            )
+        ),
+    ]
     data_owner: ExtractedField[str]
-    mappings: Annotated[list[ExtractedMapping], Field(max_length=MAX_MAPPINGS)]
+    mappings: Annotated[
+        list[ExtractedMapping],
+        Field(
+            max_length=MAX_MAPPINGS,
+            description="Every source field listed in the data dictionary or onboarding form.",
+        ),
+    ]
     fields_added_in_correspondence: Annotated[
-        list[ExtractedMapping], Field(max_length=MAX_MAPPINGS)
+        list[ExtractedMapping],
+        Field(
+            max_length=MAX_MAPPINGS,
+            description=(
+                "Only source fields that a separate, later email adds to the request. Empty when "
+                "the packet has no such email. Never repeat the dictionary's fields here."
+            ),
+        ),
     ]
 
 
