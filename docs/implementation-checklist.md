@@ -172,3 +172,10 @@ implementations.
   task per deliverable), with the shared, tested Code step in `docs/integrations/zapier`.
 - [ ] Build the CDP → Jira, claims → Jira, invoices → QuickBooks, and alerts → Slack Zaps.
 
+## Local, open-weight models
+
+- [x] Add `AGENT_PROVIDER=local` for Ollama and other OpenAI-compatible servers: no cloud key,
+  temperature 0, an 8k output budget, Compose access to the host, and evaluations without cost
+  approval; tested against a stand-in server ([guide](local-llm.md)).
+- [ ] Run the three live evaluations with a local model and compare them with a cloud model.
+

@@ -145,3 +145,13 @@ def test_live_provider_requires_explicit_cost_approval() -> None:
         require_cost_approval(settings, {})
     require_cost_approval(settings, {"EVALUATION_LIVE_ENABLED": "true"})
     require_cost_approval(Settings(agent_provider="stub"), {})
+
+
+def test_local_models_need_no_cost_approval() -> None:
+    from evaluation.live_extraction import require_cost_approval
+
+    from intake_api.infrastructure.config import Settings
+
+    local = Settings.model_validate({"agent_provider": "local", "agent_model": "qwen3:14b"})
+
+    require_cost_approval(local, {})

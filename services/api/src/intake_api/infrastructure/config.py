@@ -57,7 +57,9 @@ class Settings(BaseSettings):
     graph_request_poll_seconds: float = Field(default=2.0, gt=0, le=60)
     graph_request_backoff_base_seconds: PositiveInt = 2
     graph_request_backoff_max_seconds: PositiveInt = 60
-    agent_provider: Literal["stub", "openai", "gemini", "anthropic"] = Field(
+    # "local" means a self-hosted, OpenAI-compatible server running an open-weight model
+    # (Ollama, LM Studio, vLLM, llama.cpp); see docs/local-llm.md.
+    agent_provider: Literal["stub", "openai", "gemini", "anthropic", "local"] = Field(
         default="stub", validation_alias=AliasChoices("AGENT_PROVIDER", "INTAKE_AGENT_PROVIDER")
     )
     agent_model: str = Field(
@@ -70,6 +72,15 @@ class Settings(BaseSettings):
     )
     google_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("GOOGLE_API_KEY", "INTAKE_GOOGLE_API_KEY")
+    )
+    agent_base_url: str = Field(
+        default="http://localhost:11434/v1",
+        validation_alias=AliasChoices("AGENT_BASE_URL", "INTAKE_AGENT_BASE_URL"),
+    )
+    # Only for AGENT_PROVIDER=local, and only when the local server requires a key (for example
+    # vLLM started with --api-key). Never falls back to OPENAI_API_KEY.
+    agent_api_key: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("AGENT_API_KEY", "INTAKE_AGENT_API_KEY")
     )
     anthropic_api_key: SecretStr | None = Field(
         default=None,
@@ -101,7 +112,12 @@ class Settings(BaseSettings):
             "AGENT_TOOL_TIMEOUT_SECONDS", "INTAKE_AGENT_TOOL_TIMEOUT_SECONDS"
         ),
     )
-    agent_model_timeout_seconds: PositiveInt = 30
+    agent_model_timeout_seconds: PositiveInt = Field(
+        default=30,
+        validation_alias=AliasChoices(
+            "AGENT_MODEL_TIMEOUT_SECONDS", "INTAKE_AGENT_MODEL_TIMEOUT_SECONDS"
+        ),
+    )
     zapier_hook_url: SecretStr | None = None
     # Optional per-destination Zaps; events fall back to zapier_hook_url when unset.
     zapier_hook_url_routed: SecretStr | None = None
@@ -140,6 +156,10 @@ class Settings(BaseSettings):
             raise ValueError("GOOGLE_API_KEY is required when AGENT_PROVIDER=gemini")
         if self.agent_provider == "anthropic" and self.anthropic_api_key is None:
             raise ValueError("ANTHROPIC_API_KEY is required when AGENT_PROVIDER=anthropic")
+        if self.agent_provider == "local" and not self.agent_base_url.startswith(
+            ("http://", "https://")
+        ):
+            raise ValueError("AGENT_BASE_URL must be an http:// or https:// URL")
         if self.agent_provider != "stub" and self.agent_model == "deterministic-stub-v1":
             raise ValueError("AGENT_MODEL must be explicitly configured for a live provider")
         return self
